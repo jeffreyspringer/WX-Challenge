@@ -20,6 +20,7 @@ const calculateScore = (prediction, actual) => {
 export default function Leaderboard() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('ALL'); // 'ALL', 'KATL', 'KORD', 'KDFW'
 
   const fetchData = async () => {
     try {
@@ -34,7 +35,7 @@ export default function Leaderboard() {
       const weatherMap = {};
       if (weatherData) weatherData.forEach(w => weatherMap[w.station_id] = w);
 
-      // 2. Get Predictions
+      // 2. Get Predictions for TODAY
       const { data: preds } = await supabase
         .from('predictions')
         .select('*')
@@ -42,6 +43,7 @@ export default function Leaderboard() {
 
       if (!preds || preds.length === 0) {
         setLeaderboard([]);
+        setLoading(false);
         return;
       }
 
@@ -55,10 +57,16 @@ export default function Leaderboard() {
       const profileMap = {};
       if (profiles) profiles.forEach(p => profileMap[p.id] = p);
 
-      // 4. Calculate Scores
+      // 4. Calculate Scores (Based on Filter)
       const userScores = {};
+      
       preds.forEach(p => {
+        // 🛑 FILTER LOGIC: Skip if prediction doesn't match selected station
+        if (filter !== 'ALL' && p.station_id !== filter) return;
+
         const stationWeather = weatherMap[p.station_id];
+        
+        // Only grade if we have weather data (or show 0/pending)
         if (stationWeather) {
           const points = calculateScore(p, stationWeather);
           
@@ -67,7 +75,7 @@ export default function Leaderboard() {
             userScores[p.user_id] = {
               id: p.user_id,
               username: profile.username || 'Unknown User',
-              avatar: profile.avatar_url || 'https://api.dicebear.com/7.x/bottts/svg?seed=unknown',
+              avatar: profile.avatar_url, // Allow null to show placeholder later
               totalScore: 0,
               stationsCompleted: 0
             };
@@ -77,6 +85,7 @@ export default function Leaderboard() {
         }
       });
 
+      // Convert to array and sort (Low Score Wins)
       const sorted = Object.values(userScores).sort((a, b) => a.totalScore - b.totalScore);
       setLeaderboard(sorted);
 
@@ -87,27 +96,53 @@ export default function Leaderboard() {
     }
   };
 
+  // Re-run whenever the filter changes
   useEffect(() => {
     fetchData();
+    
+    // Real-time subscription
     const subscription = supabase
       .channel('live-weather-updates')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'actual_weather' }, 
       () => fetchData())
       .subscribe();
+      
     return () => supabase.removeChannel(subscription);
-  }, []);
+  }, [filter]); // Dependency on 'filter' ensures re-render on click
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl mt-8">
-      <div className="p-4 bg-slate-950 border-b border-slate-800 flex justify-between items-center">
-        <h2 className="font-bold text-lg text-slate-100">Live Standings</h2>
+      {/* HEADER WITH TABS */}
+      <div className="p-4 bg-slate-950 border-b border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4">
+        
         <div className="flex items-center gap-2">
-           <span className="relative flex h-3 w-3">
+           <h2 className="font-bold text-lg text-slate-100">Live Standings</h2>
+           <span className="flex h-3 w-3 relative">
              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
            </span>
-           <span className="text-xs text-emerald-400 font-mono">LIVE SCORING</span>
         </div>
+
+        {/* FILTER TABS */}
+        <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-800">
+           <button
+             onClick={() => setFilter('ALL')}
+             className={`px-3 py-1 text-xs font-bold rounded transition-all ${filter === 'ALL' ? 'bg-slate-700 text-white shadow' : 'text-slate-500 hover:text-slate-300'}`}
+           >
+             Combined
+           </button>
+           <div className="w-px h-4 bg-slate-800 mx-1 self-center"></div>
+           {['KATL', 'KORD', 'KDFW'].map(station => (
+             <button
+               key={station}
+               onClick={() => setFilter(station)}
+               className={`px-3 py-1 text-xs font-bold rounded transition-all ${filter === station ? 'bg-blue-900/50 text-blue-200 border border-blue-800' : 'text-slate-500 hover:text-slate-300'}`}
+             >
+               {station}
+             </button>
+           ))}
+        </div>
+
       </div>
       
       <div className="overflow-x-auto">
@@ -115,8 +150,10 @@ export default function Leaderboard() {
           <thead className="bg-slate-950 text-slate-200 uppercase font-bold text-xs">
             <tr>
               <th className="p-4">Rank</th>
-              <th className="p-4">User</th> {/* CHANGED FROM PILOT TO USER */}
-              <th className="p-4 text-center">Stations</th>
+              <th className="p-4">User</th>
+              <th className="p-4 text-center">
+                {filter === 'ALL' ? 'Stations' : 'Status'}
+              </th>
               <th className="p-4 text-right">Total Error</th>
             </tr>
           </thead>
@@ -126,20 +163,25 @@ export default function Leaderboard() {
             ) : leaderboard.length === 0 ? (
               <tr>
                 <td colSpan="4" className="p-8 text-center text-slate-500 italic">
-                  No predictions for <strong>Today</strong> found.<br/>
-                  <span className="text-xs opacity-50">(Did you submit for Tomorrow instead?)</span>
+                  No data found for <strong>{filter === 'ALL' ? 'Any Station' : filter}</strong> Today.
                 </td>
               </tr>
             ) : (
               leaderboard.map((player, index) => (
                 <tr key={player.id} className="hover:bg-slate-800/50 transition-colors">
-                  <td className="p-4 font-mono text-slate-500">#{index + 1}</td>
+                  <td className="p-4 font-mono text-slate-500">
+                    {index === 0 ? '🏆' : `#${index + 1}`}
+                  </td>
                   <td className="p-4 flex items-center gap-3">
-                    <img src={player.avatar} alt="avatar" className="w-8 h-8 rounded-full bg-slate-700" />
-                    <span className="font-medium text-slate-200">{player.username}</span>
+                    <div className="w-8 h-8 rounded-full bg-slate-700 overflow-hidden">
+                       {player.avatar ? <img src={player.avatar} alt="av" className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-xs">👤</div>}
+                    </div>
+                    <span className={`font-medium ${index === 0 ? 'text-yellow-400 font-bold' : 'text-slate-200'}`}>
+                      {player.username}
+                    </span>
                   </td>
                   <td className="p-4 text-center font-mono text-xs text-slate-500">
-                    {player.stationsCompleted}/3
+                    {filter === 'ALL' ? `${player.stationsCompleted}/3` : 'Active'}
                   </td>
                   <td className="p-4 text-right font-bold text-emerald-400 font-mono text-lg">
                     {player.totalScore}
