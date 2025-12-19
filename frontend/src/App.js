@@ -9,7 +9,7 @@ function App() {
       <header className="max-w-6xl mx-auto mb-10 flex flex-col md:flex-row justify-between items-center gap-6">
         <div>
           <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
-            SKYLINE ORACLE
+            TWCo WxChallenge
           </h1>
           <p className="text-slate-400">KATL • KORD • KDFW Weather Challenge</p>
         </div>
