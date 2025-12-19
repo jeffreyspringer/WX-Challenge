@@ -34,6 +34,12 @@ export default function CurrentWeather() {
     }
   };
 
+  // Helper to force 1 decimal on wind
+  const formatWind = (val) => {
+    if (val === null || val === undefined) return '--';
+    return Number(val).toFixed(1);
+  };
+
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl h-full flex flex-col">
       <div className="bg-slate-950 p-4 border-b border-slate-800 flex justify-between items-center">
@@ -66,7 +72,7 @@ export default function CurrentWeather() {
                   {/* MIDDLE: BIG CURRENT TEMP */}
                   <div className="flex items-end gap-2 mb-4">
                     <div className="text-5xl font-black text-white">
-                      {data.current_temp ?? '--'}°
+                      {data.current_temp ?? '--'}°F
                     </div>
                     <div className="text-sm text-slate-500 font-bold mb-2 uppercase tracking-wider">
                       Now
@@ -79,19 +85,19 @@ export default function CurrentWeather() {
                     {/* HIGH */}
                     <div className="flex flex-col">
                       <span className="text-[10px] text-slate-500 uppercase font-bold">High</span>
-                      <span className="text-emerald-400 font-mono font-bold">{data.temp}°</span>
+                      <span className="text-emerald-400 font-mono font-bold">{data.temp}°F</span>
                     </div>
 
                     {/* LOW */}
                     <div className="flex flex-col border-l border-slate-800">
                       <span className="text-[10px] text-slate-500 uppercase font-bold">Low</span>
-                      <span className="text-blue-400 font-mono font-bold">{data.min_temp ?? '--'}°</span>
+                      <span className="text-blue-400 font-mono font-bold">{data.min_temp ?? '--'}°F</span>
                     </div>
 
-                    {/* WIND */}
+                    {/* WIND (Formatted to 1 Decimal) */}
                     <div className="flex flex-col border-l border-slate-800">
                       <span className="text-[10px] text-slate-500 uppercase font-bold">Wind</span>
-                      <span className="text-white font-mono font-bold">{data.wind_speed}kt</span>
+                      <span className="text-white font-mono font-bold">{formatWind(data.wind_speed)}kt</span>
                     </div>
 
                     {/* PRECIP */}
