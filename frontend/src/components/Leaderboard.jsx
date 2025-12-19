@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 
-// SCORING MATH HELPER (Pure logic, stays outside)
+// 🧮 SCORING MATH HELPER
 const calculateScore = (prediction, actual) => {
   if (!prediction || !actual) return 0;
   
@@ -55,7 +55,7 @@ export default function Leaderboard() {
       const profileMap = {};
       if (profiles) profiles.forEach(p => profileMap[p.id] = p);
 
-      // 4. Calculate Scores (Inline Logic)
+      // 4. Calculate Scores
       const userScores = {};
       preds.forEach(p => {
         const stationWeather = weatherMap[p.station_id];
@@ -66,7 +66,7 @@ export default function Leaderboard() {
             const profile = profileMap[p.user_id] || {};
             userScores[p.user_id] = {
               id: p.user_id,
-              username: profile.username || 'Unknown Pilot',
+              username: profile.username || 'Unknown User',
               avatar: profile.avatar_url || 'https://api.dicebear.com/7.x/bottts/svg?seed=unknown',
               totalScore: 0,
               stationsCompleted: 0
@@ -89,14 +89,11 @@ export default function Leaderboard() {
 
   useEffect(() => {
     fetchData();
-
-    // Realtime Listener
     const subscription = supabase
       .channel('live-weather-updates')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'actual_weather' }, 
       () => fetchData())
       .subscribe();
-
     return () => supabase.removeChannel(subscription);
   }, []);
 
@@ -118,7 +115,7 @@ export default function Leaderboard() {
           <thead className="bg-slate-950 text-slate-200 uppercase font-bold text-xs">
             <tr>
               <th className="p-4">Rank</th>
-              <th className="p-4">Pilot</th>
+              <th className="p-4">User</th> {/* CHANGED FROM PILOT TO USER */}
               <th className="p-4 text-center">Stations</th>
               <th className="p-4 text-right">Total Error</th>
             </tr>
