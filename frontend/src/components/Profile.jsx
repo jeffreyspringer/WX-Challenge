@@ -13,14 +13,14 @@ export default function Profile({ session, onProfileUpdate }) {
       setLoading(true);
       const { user } = session;
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
-        .select(`username, avatar_url`)
+        .select('username, avatar_url') // Simplified select
         .eq('id', user.id)
         .single();
 
       if (data) {
-        setUsername(data.username);
+        setUsername(data.username || '');
         setAvatarUrl(data.avatar_url);
       }
       setLoading(false);
@@ -28,32 +28,21 @@ export default function Profile({ session, onProfileUpdate }) {
     getProfile();
   }, [session]);
 
-  // 📸 HANDLE IMAGE UPLOAD
   const uploadAvatar = async (event) => {
     try {
       setUploading(true);
-
-      if (!event.target.files || event.target.files.length === 0) {
-        throw new Error('You must select an image to upload.');
-      }
+      if (!event.target.files || event.target.files.length === 0) throw new Error('Select an image.');
 
       const file = event.target.files[0];
       const fileExt = file.name.split('.').pop();
       const fileName = `${Math.random()}.${fileExt}`;
       const filePath = `${fileName}`;
 
-      // 1. Upload to Supabase Storage
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file);
-
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file);
       if (uploadError) throw uploadError;
 
-      // 2. Get Public URL
       const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
-      
-      // 3. Update Profile instantly
-      setAvatarUrl(data.publicUrl); // Show preview
+      setAvatarUrl(data.publicUrl); 
       
     } catch (error) {
       alert(error.message);
@@ -67,21 +56,23 @@ export default function Profile({ session, onProfileUpdate }) {
     setLoading(true);
     setMessage('');
     
+    // 1. Prepare the data (Simplified)
     const updates = {
       id: session.user.id,
-      username,
+      username: username.trim(), // Remove accidental spaces
       avatar_url: avatarUrl,
-      updated_at: new Date(),
+      updated_at: new Date().toISOString(), // FIX: Send String, not Date Object
     };
 
+    // 2. Try to Save
     const { error } = await supabase.from('profiles').upsert(updates);
 
     if (error) {
-      if (error.code === '23505') setMessage('❌ Username already taken!');
-      else setMessage('❌ Error updating profile');
+      // 🛑 SHOW THE REAL ERROR ON SCREEN
+      console.error('Save Error:', error);
+      setMessage(`❌ ${error.message}`); 
     } else {
       setMessage('✅ Profile updated!');
-      // Tell App.js we are done so it unlocks the dashboard
       if (onProfileUpdate) onProfileUpdate(); 
     }
     setLoading(false);
@@ -92,32 +83,17 @@ export default function Profile({ session, onProfileUpdate }) {
       <h2 className="text-2xl font-bold text-white mb-6 border-b border-slate-700 pb-2">Pilot Profile</h2>
       
       <div className="flex flex-col items-center mb-6">
-        <div className="relative group cursor-pointer">
-          <div className="w-24 h-24 bg-slate-700 rounded-full flex items-center justify-center overflow-hidden border-2 border-emerald-500 shadow-lg">
+        <div className="relative group cursor-pointer w-24 h-24">
+          <div className="w-full h-full bg-slate-700 rounded-full flex items-center justify-center overflow-hidden border-2 border-emerald-500 shadow-lg">
              {avatarUrl ? (
                <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
              ) : (
                <span className="text-4xl">✈️</span>
              )}
           </div>
-          
-          {/* OVERLAY ON HOVER */}
-          <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-             <span className="text-xs font-bold text-white">CHANGE</span>
-          </div>
-
-          {/* HIDDEN FILE INPUT */}
-          <input
-            type="file"
-            accept="image/*"
-            onChange={uploadAvatar}
-            disabled={uploading}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-          />
+          <input type="file" accept="image/*" onChange={uploadAvatar} disabled={uploading} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
         </div>
-        <p className="text-slate-500 text-xs mt-2 uppercase font-bold tracking-widest">
-          {uploading ? 'Uploading...' : 'Click to Update'}
-        </p>
+        <p className="text-slate-500 text-xs mt-2 uppercase font-bold tracking-widest">{uploading ? 'Uploading...' : 'Click to Update'}</p>
       </div>
 
       <form onSubmit={updateProfile} className="space-y-4">
@@ -126,7 +102,7 @@ export default function Profile({ session, onProfileUpdate }) {
           <input
             type="text"
             required
-            value={username || ''}
+            value={username}
             onChange={(e) => setUsername(e.target.value)}
             className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-white focus:border-emerald-500 outline-none"
             placeholder="Callsign (e.g. Maverick)"
@@ -134,16 +110,14 @@ export default function Profile({ session, onProfileUpdate }) {
           />
         </div>
 
-        <button
-          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded transition-colors disabled:opacity-50"
-          disabled={loading || uploading}
-        >
+        <button className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded transition-colors disabled:opacity-50" disabled={loading || uploading}>
           {loading ? 'Saving...' : 'Save Profile'}
         </button>
       </form>
       
+      {/* ERROR MESSAGE BOX */}
       {message && (
-        <div className={`mt-4 p-3 rounded text-center text-sm font-bold ${message.includes('❌') ? 'bg-red-900/50 text-red-200' : 'bg-emerald-900/50 text-emerald-200'}`}>
+        <div className={`mt-4 p-3 rounded text-center text-sm font-bold break-words ${message.includes('❌') ? 'bg-red-900/50 text-red-200' : 'bg-emerald-900/50 text-emerald-200'}`}>
           {message}
         </div>
       )}
