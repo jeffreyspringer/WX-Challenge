@@ -15,12 +15,15 @@ def fetch():
         res = requests.get(f"https://api.weather.gov/stations/{s}/observations/latest", headers=headers).json()
         p = res['properties']
         
+        # We use .get() and provide a default empty dictionary {} 
+        # to prevent "NoneType" errors if a field is missing.
         data = {
             "station_id": s,
-            "temp": p['temperature']['value'],
-            "wind_speed": p['windSpeed']['value'],
-            "wind_dir": p['windDirection']['value'],
-            "precip": p['precipitationLastHour']['value'] or 0
+            "temp": p.get('temperature', {}).get('value'),
+            "wind_speed": p.get('windSpeed', {}).get('value'),
+            "wind_dir": p.get('windDirection', {}).get('value'),
+            # This is the line that caused your crash:
+            "precip": p.get('precipitationLastHour', {}).get('value') or 0
         }
         # Upsert ensures we update the same row for "Today" every 5 mins
         supabase.table("actual_weather").upsert(data, on_conflict="station_id, date").execute()
