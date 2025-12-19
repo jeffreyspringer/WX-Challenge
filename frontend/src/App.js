@@ -5,9 +5,11 @@ import { ThemeSupa } from '@supabase/auth-ui-shared';
 import CountdownClock from './components/CountdownClock';
 import PredictionForm from './components/PredictionForm';
 import Leaderboard from './components/Leaderboard';
+import Profile from './components/Profile';
 
 function App() {
   const [session, setSession] = useState(null);
+  const [view, setView] = useState('dashboard'); // 'dashboard' or 'profile'
 
   useEffect(() => {
     // 1. Check active session on load
@@ -35,42 +37,64 @@ function App() {
             supabaseClient={supabase} 
             appearance={{ theme: ThemeSupa, variables: { default: { colors: { brand: '#10b981', brandAccent: '#059669' } } } }}
             theme="dark"
-            providers={[]} // We can add 'google' later if you want
+            providers={[]} 
           />
         </div>
       </div>
     );
   }
 
-  // ✅ IF LOGGED IN: SHOW DASHBOARD
+  // ✅ IF LOGGED IN: SHOW APP
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8">
       <header className="max-w-6xl mx-auto mb-10 flex flex-col md:flex-row justify-between items-center gap-6">
-        <div>
+        <div className="cursor-pointer" onClick={() => setView('dashboard')}>
           <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
             TWCo WxChallenge
           </h1>
           <p className="text-slate-400">KATL • KORD • KDFW Weather Competition</p>
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <CountdownClock />
-          <button 
-            onClick={() => supabase.auth.signOut()} 
-            className="text-xs text-slate-500 hover:text-white underline"
-          >
-            Sign Out
-          </button>
+        
+        <div className="flex flex-col md:items-end gap-3">
+           <CountdownClock />
+           
+           <div className="flex items-center gap-2 bg-slate-900 p-1 rounded-lg border border-slate-800">
+              <button 
+                onClick={() => setView('dashboard')}
+                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${view === 'dashboard' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+              >
+                Dashboard
+              </button>
+              <button 
+                onClick={() => setView('profile')}
+                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${view === 'profile' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+              >
+                My Profile
+              </button>
+              <div className="w-px h-4 bg-slate-700 mx-1"></div>
+              <button 
+                onClick={() => supabase.auth.signOut()} 
+                className="px-3 text-xs text-red-400 hover:text-red-300 font-mono tracking-wide"
+              >
+                EXIT
+              </button>
+           </div>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-1">
-          {/* We now pass the REAL User ID to the form! */}
-          <PredictionForm userId={session.user.id} />
-        </div>
-        <div className="lg:col-span-2">
-          <Leaderboard />
-        </div>
+      <main className="max-w-6xl mx-auto">
+        {view === 'dashboard' ? (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-1">
+              <PredictionForm userId={session.user.id} />
+            </div>
+            <div className="lg:col-span-2">
+              <Leaderboard />
+            </div>
+          </div>
+        ) : (
+          <Profile session={session} />
+        )}
       </main>
 
       <footer className="mt-20 text-center text-slate-600 text-sm border-t border-slate-900 pt-8">
