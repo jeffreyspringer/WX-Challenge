@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 
-// 🧮 SCORING MATH HELPER (Pure logic, stays outside)
+// SCORING MATH HELPER (Pure logic, stays outside)
 const calculateScore = (prediction, actual) => {
   if (!prediction || !actual) return 0;
   
