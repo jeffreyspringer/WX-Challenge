@@ -17,7 +17,7 @@ export default function PredictionForm({ userId }) {
   });
   
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState(null); // { type: 'success' | 'error', text: '' }
+  const [message, setMessage] = useState(null);
 
   // 🕒 CALCULATE TARGET DATE (Tomorrow)
   const getTargetDate = () => {
@@ -82,12 +82,13 @@ export default function PredictionForm({ userId }) {
       {/* HEADER */}
       <div className="bg-slate-950 p-4 border-b border-slate-800 flex justify-between items-center">
         <div>
-          <h2 className="text-white font-bold text-lg">Flight Plan</h2>
+          {/* CHANGED HERE */}
+          <h2 className="text-white font-bold text-lg">Predictions</h2>
           <p className="text-slate-400 text-xs uppercase tracking-wider font-mono">
             Target: {getTargetDate()}
           </p>
         </div>
-        <div className="text-2xl">🛫</div>
+        <div className="text-2xl">📝</div> {/* Changed icon to memo/pencil */}
       </div>
 
       {/* FORM */}
@@ -182,7 +183,7 @@ export default function PredictionForm({ userId }) {
               : 'bg-blue-600 hover:bg-blue-500 text-white shadow-xl shadow-blue-900/20'
           }`}
         >
-          {loading ? 'Transmitting...' : 'Lock It In'}
+          {loading ? 'Submitting...' : 'Lock It In'}
         </button>
 
         {/* FEEDBACK MESSAGE */}
