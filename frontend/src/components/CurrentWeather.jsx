@@ -34,7 +34,14 @@ export default function CurrentWeather() {
     }
   };
 
-  // Helper to force 1 decimal on wind
+  // 🌡️ CONVERSION HELPER: Celsius -> Fahrenheit (1 Decimal)
+  const toFahrenheit = (celsius) => {
+    if (celsius === null || celsius === undefined) return '--';
+    const f = (celsius * 9/5) + 32;
+    return f.toFixed(1); // Keeps 1 decimal place (e.g., 72.4)
+  };
+
+  // 💨 WIND HELPER: Force 1 Decimal
   const formatWind = (val) => {
     if (val === null || val === undefined) return '--';
     return Number(val).toFixed(1);
@@ -43,80 +50,4 @@ export default function CurrentWeather() {
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl h-full flex flex-col">
       <div className="bg-slate-950 p-4 border-b border-slate-800 flex justify-between items-center">
-        <h2 className="text-white font-bold text-lg">Current Conditions</h2>
-        <span className="text-2xl animate-pulse">📡</span>
-      </div>
-
-      <div className="p-4 space-y-4 flex-1 overflow-y-auto">
-        {STATIONS.map(station => {
-          const data = weather[station];
-          return (
-            <div key={station} className="bg-slate-950/50 border border-slate-800 rounded-lg p-4 transition-all hover:border-slate-700">
-              
-              {/* TOP ROW: Name & Status */}
-              <div className="flex justify-between items-center mb-3">
-                <span className="font-black text-blue-400 text-xl tracking-widest">{station}</span>
-                {data ? (
-                  <span className="text-[10px] uppercase font-bold bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">
-                    Live
-                  </span>
-                ) : (
-                  <span className="text-[10px] uppercase font-bold bg-slate-800 text-slate-500 px-2 py-0.5 rounded">
-                    Offline
-                  </span>
-                )}
-              </div>
-
-              {data ? (
-                <>
-                  {/* MIDDLE: BIG CURRENT TEMP */}
-                  <div className="flex items-end gap-2 mb-4">
-                    <div className="text-5xl font-black text-white">
-                      {data.current_temp ?? '--'}°F
-                    </div>
-                    <div className="text-sm text-slate-500 font-bold mb-2 uppercase tracking-wider">
-                      Now
-                    </div>
-                  </div>
-
-                  {/* BOTTOM GRID: High/Low/Wind/Precip */}
-                  <div className="grid grid-cols-4 gap-2 text-center bg-slate-900/80 rounded-lg p-2 border border-slate-800">
-                    
-                    {/* HIGH */}
-                    <div className="flex flex-col">
-                      <span className="text-[10px] text-slate-500 uppercase font-bold">High</span>
-                      <span className="text-emerald-400 font-mono font-bold">{data.temp}°F</span>
-                    </div>
-
-                    {/* LOW */}
-                    <div className="flex flex-col border-l border-slate-800">
-                      <span className="text-[10px] text-slate-500 uppercase font-bold">Low</span>
-                      <span className="text-blue-400 font-mono font-bold">{data.min_temp ?? '--'}°F</span>
-                    </div>
-
-                    {/* WIND (Formatted to 1 Decimal) */}
-                    <div className="flex flex-col border-l border-slate-800">
-                      <span className="text-[10px] text-slate-500 uppercase font-bold">Wind</span>
-                      <span className="text-white font-mono font-bold">{formatWind(data.wind_speed)}kt</span>
-                    </div>
-
-                    {/* PRECIP */}
-                    <div className="flex flex-col border-l border-slate-800">
-                      <span className="text-[10px] text-slate-500 uppercase font-bold">Rain</span>
-                      <span className="text-white font-mono font-bold">{data.precip}"</span>
-                    </div>
-
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-4">
-                  <p className="text-slate-600 text-xs italic">Waiting for daily report...</p>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+        <h2 className="text-white font-bold text-lg">
