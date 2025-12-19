@@ -82,6 +82,7 @@ function App() {
             session={session} 
             targetUserId={targetProfileId} 
             onBack={goHome} 
+            onNavigate={goToProfile}
           />
         )}
       </main>
