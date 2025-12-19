@@ -58,3 +58,5 @@ const PredictionForm = ({ userId }) => {
     </form>
   );
 };
+
+export default PredictionForm;
