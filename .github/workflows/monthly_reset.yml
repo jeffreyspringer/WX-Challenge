@@ -1,0 +1,21 @@
+name: Monthly Leaderboard Reset
+on:
+  schedule:
+    # Runs at 00:00 (Midnight) on day 1 of every month
+    - cron: '0 0 1 * *'
+  workflow_dispatch: # Allows you to run it manually for testing
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - run: pip install supabase
+      - name: Execute Reset Script
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python backend/monthly_reset.py
