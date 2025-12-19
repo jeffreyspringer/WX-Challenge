@@ -34,14 +34,14 @@ export default function CurrentWeather() {
     }
   };
 
-  // 🌡️ CONVERSION HELPER: Celsius -> Fahrenheit
+  // 🌡️ CONVERSION HELPER: Celsius -> Fahrenheit (1 Decimal)
   const toFahrenheit = (celsius) => {
     if (celsius === null || celsius === undefined) return '--';
     const f = (celsius * 9/5) + 32;
     return f.toFixed(1);
   };
 
-  // 💨 WIND HELPER
+  // 💨 WIND HELPER: Force 1 Decimal
   const formatWind = (val) => {
     if (val === null || val === undefined) return '--';
     return Number(val).toFixed(1);
@@ -76,7 +76,7 @@ export default function CurrentWeather() {
 
               {data ? (
                 <>
-                  {/* MIDDLE: BIG CURRENT TEMP */}
+                  {/* MIDDLE: BIG CURRENT TEMP (Converted) */}
                   <div className="flex items-end gap-2 mb-4">
                     <div className="text-5xl font-black text-white">
                       {toFahrenheit(data.current_temp)}°F
@@ -89,7 +89,7 @@ export default function CurrentWeather() {
                   {/* BOTTOM GRID: High/Low/Wind/Precip */}
                   <div className="grid grid-cols-4 gap-2 text-center bg-slate-900/80 rounded-lg p-2 border border-slate-800">
                     
-                    {/* HIGH */}
+                    {/* HIGH (Converted) */}
                     <div className="flex flex-col">
                       <span className="text-[10px] text-slate-500 uppercase font-bold">High</span>
                       <span className="text-emerald-400 font-mono font-bold">
@@ -97,7 +97,7 @@ export default function CurrentWeather() {
                       </span>
                     </div>
 
-                    {/* LOW */}
+                    {/* LOW (Converted) */}
                     <div className="flex flex-col border-l border-slate-800">
                       <span className="text-[10px] text-slate-500 uppercase font-bold">Low</span>
                       <span className="text-blue-400 font-mono font-bold">
@@ -105,7 +105,7 @@ export default function CurrentWeather() {
                       </span>
                     </div>
 
-                    {/* WIND */}
+                    {/* WIND (Decimal) */}
                     <div className="flex flex-col border-l border-slate-800">
                       <span className="text-[10px] text-slate-500 uppercase font-bold">Wind</span>
                       <span className="text-white font-mono font-bold">{formatWind(data.wind_speed)}kt</span>
