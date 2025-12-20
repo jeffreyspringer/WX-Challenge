@@ -111,7 +111,7 @@ export default function Leaderboard() {
   }, [filter]); // Dependency on 'filter' ensures re-render on click
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl mt-8">
+    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl h-full">
       {/* HEADER WITH TABS */}
       <div className="p-4 bg-slate-950 border-b border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4">
         
