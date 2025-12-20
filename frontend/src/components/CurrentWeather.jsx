@@ -41,10 +41,17 @@ export default function CurrentWeather() {
     return f.toFixed(1);
   };
 
-  // 💨 WIND HELPER: Force 1 Decimal
+  // 💨 WIND HELPER
   const formatWind = (val) => {
     if (val === null || val === undefined) return '--';
     return Number(val).toFixed(1);
+  };
+
+  // 🕒 TIME HELPER (New!)
+  const formatTime = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   };
 
   return (
@@ -64,9 +71,14 @@ export default function CurrentWeather() {
               <div className="flex justify-between items-center mb-3">
                 <span className="font-black text-blue-400 text-xl tracking-widest">{station}</span>
                 {data ? (
-                  <span className="text-[10px] uppercase font-bold bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">
-                    Live
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      {formatTime(data.updated_at)}
+                    </span>
+                    <span className="text-[10px] uppercase font-bold bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">
+                      Live
+                    </span>
+                  </div>
                 ) : (
                   <span className="text-[10px] uppercase font-bold bg-slate-800 text-slate-500 px-2 py-0.5 rounded">
                     Offline
