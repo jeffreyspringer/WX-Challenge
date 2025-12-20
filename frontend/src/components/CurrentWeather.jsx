@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 
-const STATIONS = ['KATL', 'KORD', 'KDFW'];
+const STATIONS = [
+  { id: 'KATL', name: 'Atlanta' },
+  { id: 'KORD', name: 'Chicago' },
+  { id: 'KDFW', name: 'Dallas' }
+];
 
 export default function CurrentWeather() {
   const [weather, setWeather] = useState({});
@@ -47,10 +51,11 @@ export default function CurrentWeather() {
     return Number(val).toFixed(1);
   };
 
-  // 🕒 TIME HELPER
+  // 🕒 TIME HELPER (Strict Fallback)
   const formatTime = (isoString) => {
-    if (!isoString) return '--:--'; // Returns dashes if no time exists yet
+    if (!isoString) return '--:--';
     const date = new Date(isoString);
+    if (isNaN(date.getTime())) return '--:--'; // Handle invalid dates
     return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   };
 
@@ -62,17 +67,18 @@ export default function CurrentWeather() {
       </div>
 
       <div className="p-4 space-y-4 flex-1 overflow-y-auto">
-        {STATIONS.map(station => {
-          const data = weather[station];
+        {STATIONS.map(s => {
+          const data = weather[s.id];
           return (
-            <div key={station} className="bg-slate-950/50 border border-slate-800 rounded-lg p-4 transition-all hover:border-slate-700">
+            <div key={s.id} className="bg-slate-950/50 border border-slate-800 rounded-lg p-4 transition-all hover:border-slate-700">
               
               {/* TOP ROW: Name & Status */}
               <div className="flex justify-between items-center mb-3">
-                <span className="font-black text-blue-400 text-xl tracking-widest">{station}</span>
+                <span className="font-black text-blue-400 text-xl tracking-widest">{s.id}</span>
                 {data ? (
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-slate-500 font-mono">
+                    {/* TIMESTAMP - Will show --:-- if empty */}
+                    <span className="text-[10px] text-slate-500 font-mono font-bold">
                       {formatTime(data.updated_at)}
                     </span>
                     <span className="text-[10px] uppercase font-bold bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">
