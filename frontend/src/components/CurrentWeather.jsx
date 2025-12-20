@@ -47,9 +47,9 @@ export default function CurrentWeather() {
     return Number(val).toFixed(1);
   };
 
-  // 🕒 TIME HELPER (New!)
+  // 🕒 TIME HELPER
   const formatTime = (isoString) => {
-    if (!isoString) return '';
+    if (!isoString) return '--:--'; // Returns dashes if no time exists yet
     const date = new Date(isoString);
     return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   };
