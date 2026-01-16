@@ -8,17 +8,35 @@ const STATION_URLS = {
   KDFW: 'https://api.weather.gov/gridpoints/FWD/88,103/forecast'
 };
 
+const INITIAL_FORM_STATE = { maxTemp: '', windSpeed: '', windDir: '', precip: '' };
+
 export default function PredictionForm({ session }) {
   const [station, setStation] = useState('KATL');
-  const [formData, setFormData] = useState({
-    maxTemp: '',
-    windSpeed: '',
-    windDir: '',
-    precip: ''
+  
+  // 🗂️ SEPARATE DRAFTS FOR EACH STATION
+  const [drafts, setDrafts] = useState({
+    KATL: { ...INITIAL_FORM_STATE },
+    KORD: { ...INITIAL_FORM_STATE },
+    KDFW: { ...INITIAL_FORM_STATE }
   });
+
   const [nwsForecast, setNwsForecast] = useState(null);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState(null); 
+
+  // Helper to get the form data for the CURRENT active station
+  const currentForm = drafts[station];
+
+  // Helper to update specific fields for the CURRENT station
+  const updateDraft = (field, value) => {
+    setDrafts(prev => ({
+      ...prev,
+      [station]: {
+        ...prev[station],
+        [field]: value
+      }
+    }));
+  };
 
   const getTargetDate = () => {
     const d = new Date();
@@ -31,6 +49,7 @@ export default function PredictionForm({ session }) {
 
   const targetDate = getTargetDate();
 
+  // 📡 Fetch NWS Data when station changes
   useEffect(() => {
     async function fetchIntel() {
       setNwsForecast(null);
@@ -60,9 +79,8 @@ export default function PredictionForm({ session }) {
     setLoading(true);
     setStatus(null);
 
-    // 🛑 FIXED VALIDATION: Now allows '0' as a valid number
-    // We only fail if the string is explicitly empty ('')
-    if (formData.maxTemp === '' || formData.windSpeed === '' || formData.windDir === '' || formData.precip === '') {
+    // Validation using currentForm
+    if (currentForm.maxTemp === '' || currentForm.windSpeed === '' || currentForm.windDir === '' || currentForm.precip === '') {
       setStatus('error');
       setLoading(false);
       return;
@@ -75,10 +93,10 @@ export default function PredictionForm({ session }) {
         user_id: user.id,
         station_id: station,
         prediction_date: targetDate,
-        p_high: parseFloat(formData.maxTemp),
-        p_wind_speed: parseFloat(formData.windSpeed),
-        p_wind_dir: parseInt(formData.windDir),
-        p_precip: parseFloat(formData.precip),
+        p_high: parseFloat(currentForm.maxTemp),
+        p_wind_speed: parseFloat(currentForm.windSpeed),
+        p_wind_dir: parseInt(currentForm.windDir),
+        p_precip: parseFloat(currentForm.precip),
         submitted_at: new Date().toISOString()
       };
 
@@ -89,8 +107,9 @@ export default function PredictionForm({ session }) {
       if (error) throw error;
 
       setStatus('success');
-      setFormData({ maxTemp: '', windSpeed: '', windDir: '', precip: '' });
-
+      // Optional: Clear only this station's draft after success? 
+      // For now, let's keep it so they can see what they submitted.
+      
     } catch (error) {
       console.error('Error submitting:', error);
       setStatus('error');
@@ -102,12 +121,17 @@ export default function PredictionForm({ session }) {
   const applyIntel = () => {
     if (!nwsForecast) return;
     const windNum = parseInt(nwsForecast.wind.split(' ')[0]) || 0; 
-    setFormData({
-      ...formData,
-      maxTemp: nwsForecast.temp,
-      windSpeed: windNum,
-      precip: '0.00'
-    });
+    
+    // Update the WHOLE object for this station
+    setDrafts(prev => ({
+      ...prev,
+      [station]: {
+        maxTemp: nwsForecast.temp,
+        windSpeed: windNum,
+        precip: '0.00',
+        windDir: prev[station].windDir // Keep existing wind dir if they typed it
+      }
+    }));
   };
 
   return (
@@ -143,12 +167,16 @@ export default function PredictionForm({ session }) {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         
+        {/* STATION TABS */}
         <div className="grid grid-cols-3 gap-2 bg-slate-950 p-1 rounded-lg">
           {['KATL', 'KORD', 'KDFW'].map((s) => (
             <button
               key={s}
               type="button"
-              onClick={() => setStation(s)}
+              onClick={() => {
+                setStation(s);
+                setStatus(null); // Clear success/error message when switching tabs
+              }}
               className={`py-2 text-sm font-bold rounded transition-all ${
                 station === s ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'
               }`}
@@ -161,28 +189,52 @@ export default function PredictionForm({ session }) {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Max Temp (°F)</label>
-            <input type="number" step="0.1" value={formData.maxTemp} onChange={e => setFormData({...formData, maxTemp: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white font-mono focus:border-blue-500 outline-none transition-colors" placeholder="72.0" />
+            <input 
+              type="number" step="0.1" 
+              value={currentForm.maxTemp} 
+              onChange={e => updateDraft('maxTemp', e.target.value)} 
+              className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white font-mono focus:border-blue-500 outline-none transition-colors" 
+              placeholder="72.0" 
+            />
           </div>
           <div>
             <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Precip (in)</label>
-            <input type="number" step="0.01" value={formData.precip} onChange={e => setFormData({...formData, precip: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white font-mono focus:border-blue-500 outline-none transition-colors" placeholder="0.00" />
+            <input 
+              type="number" step="0.01" 
+              value={currentForm.precip} 
+              onChange={e => updateDraft('precip', e.target.value)} 
+              className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white font-mono focus:border-blue-500 outline-none transition-colors" 
+              placeholder="0.00" 
+            />
           </div>
           <div>
             <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Wind Spd (kt)</label>
-            <input type="number" value={formData.windSpeed} onChange={e => setFormData({...formData, windSpeed: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white font-mono focus:border-blue-500 outline-none transition-colors" placeholder="12" />
+            <input 
+              type="number" 
+              value={currentForm.windSpeed} 
+              onChange={e => updateDraft('windSpeed', e.target.value)} 
+              className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white font-mono focus:border-blue-500 outline-none transition-colors" 
+              placeholder="12" 
+            />
           </div>
           <div>
             <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Wind Dir (0-360)</label>
-            <input type="number" value={formData.windDir} onChange={e => setFormData({...formData, windDir: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white font-mono focus:border-blue-500 outline-none transition-colors" placeholder="270" />
+            <input 
+              type="number" 
+              value={currentForm.windDir} 
+              onChange={e => updateDraft('windDir', e.target.value)} 
+              className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white font-mono focus:border-blue-500 outline-none transition-colors" 
+              placeholder="270" 
+            />
           </div>
         </div>
 
         <button type="submit" disabled={loading} className={`w-full py-3 rounded font-black tracking-widest uppercase transition-all ${status === 'success' ? 'bg-emerald-500 text-white' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}>
-          {loading ? 'Saving...' : status === 'success' ? 'Locked In! 🔒' : 'Lock It In'}
+          {loading ? 'Saving...' : status === 'success' ? `Locked In (${station})! 🔒` : `Lock It In (${station})`}
         </button>
 
         {status === 'error' && (
-          <p className="text-center text-red-400 text-xs font-bold animate-pulse">⚠️ Please fill out all fields</p>
+          <p className="text-center text-red-400 text-xs font-bold animate-pulse">⚠️ Please fill out all fields for {station}</p>
         )}
 
       </form>
