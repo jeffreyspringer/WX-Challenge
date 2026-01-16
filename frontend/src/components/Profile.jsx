@@ -2,6 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
+// 🎨 PRESETS FOR CUSTOMIZATION
+const AVATARS = ['🧙‍♂️', '🌪️', '⛈️', '🌤️', '👽', '🤖', '🦊', '⚡'];
+const BANNERS = [
+  { name: 'Midnight', class: 'from-blue-900 via-slate-800 to-slate-900' },
+  { name: 'Sunset', class: 'from-orange-500 via-red-500 to-pink-500' },
+  { name: 'Ocean', class: 'from-cyan-500 via-blue-500 to-indigo-500' },
+  { name: 'Forest', class: 'from-emerald-500 via-green-500 to-teal-500' },
+  { name: 'Storm', class: 'from-slate-700 via-slate-600 to-slate-800' },
+];
+
 // 🏅 BADGE DEFINITIONS
 const BADGE_RULES = [
   { id: 'rookie', name: 'The Rookie', icon: '🐣', desc: 'Made your first prediction', check: h => h.length >= 1 },
@@ -13,12 +23,23 @@ const BADGE_RULES = [
 
 export default function Profile({ session }) {
   const [loading, setLoading] = useState(true);
+  
+  // 👤 USER DATA
+  const [profile, setProfile] = useState({
+    username: '',
+    avatar: '🧙‍♂️',
+    banner: 'from-blue-900 via-slate-800 to-slate-900'
+  });
+  
+  // ✏️ EDIT MODE STATE
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ ...profile });
+
+  // 📊 STATS DATA
   const [stats, setStats] = useState({ total: 0, avgError: 0 });
   const [history, setHistory] = useState([]);
   const [chartData, setChartData] = useState([]);
   const [earnedBadges, setEarnedBadges] = useState([]);
-  
-  // 👤 SOCIAL STATE (New!)
   const [socials, setSocials] = useState({ followers: 0, following: 0 });
 
   useEffect(() => {
@@ -28,8 +49,35 @@ export default function Profile({ session }) {
   const fetchProfileData = async () => {
     try {
       const user = session.user;
-      
-      // 1. Fetch Predictions
+
+      // 1. Fetch Custom Profile Data (Avatar/Banner)
+      let { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      // If no profile exists yet, use defaults and we will upsert later
+      if (!profileData) {
+        profileData = {
+          username: user.email.split('@')[0],
+          avatar_emoji: '🧙‍♂️',
+          banner_color: 'from-blue-900 via-slate-800 to-slate-900'
+        };
+      }
+
+      setProfile({
+        username: profileData.username,
+        avatar: profileData.avatar_emoji,
+        banner: profileData.banner_color
+      });
+      setEditForm({
+        username: profileData.username,
+        avatar: profileData.avatar_emoji,
+        banner: profileData.banner_color
+      });
+
+      // 2. Fetch Predictions
       const { data: preds, error } = await supabase
         .from('predictions')
         .select(`*, actual_weather ( temp, wind_speed, precip )`)
@@ -38,7 +86,7 @@ export default function Profile({ session }) {
 
       if (error) throw error;
 
-      // 2. Process Stats & History
+      // 3. Process Stats & History
       if (preds && preds.length > 0) {
         let totalError = 0;
         let completedCount = 0;
@@ -52,7 +100,6 @@ export default function Profile({ session }) {
             const windErr = Math.abs(p.p_wind_speed - p.actual_weather.wind_speed);
             dailyError = tempErr + windErr;
             precipError = Math.abs((p.p_precip || 0) - (p.actual_weather.precip || 0));
-            
             totalError += dailyError;
             completedCount++;
           }
@@ -69,7 +116,6 @@ export default function Profile({ session }) {
         });
 
         setHistory(formattedHistory);
-        
         const graphPoints = formattedHistory
           .filter(h => h.rawError !== null)
           .map(h => ({ date: h.date.slice(5), error: h.rawError }))
@@ -89,28 +135,111 @@ export default function Profile({ session }) {
     }
   };
 
+  const handleSaveProfile = async () => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: session.user.id,
+          username: editForm.username,
+          avatar_emoji: editForm.avatar,
+          banner_color: editForm.banner,
+          updated_at: new Date()
+        });
+
+      if (error) throw error;
+
+      setProfile(editForm);
+      setIsEditing(false);
+    } catch (error) {
+      alert('Error saving profile!');
+      console.error(error);
+    }
+  };
+
   if (loading) return <div className="text-white p-10 text-center">Loading Profile...</div>;
 
-  // 🎨 HELPER: Get username from email (user@gmail.com -> user)
-  const username = session?.user?.email ? session.user.email.split('@')[0] : 'WeatherWizard';
-
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-10">
+    <div className="max-w-4xl mx-auto space-y-8 pb-10 relative">
       
-      {/* 👤 SOCIAL HEADER (Restored!) */}
+      {/* ✏️ EDIT MODAL */}
+      {isEditing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <h2 className="text-white font-bold text-xl mb-4">Edit Profile</h2>
+            
+            {/* Username */}
+            <div className="mb-4">
+              <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Display Name</label>
+              <input 
+                value={editForm.username}
+                onChange={e => setEditForm({...editForm, username: e.target.value})}
+                className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white"
+              />
+            </div>
+
+            {/* Avatar Picker */}
+            <div className="mb-4">
+              <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Choose Avatar</label>
+              <div className="flex gap-2 overflow-x-auto pb-2">
+                {AVATARS.map(emoji => (
+                  <button 
+                    key={emoji}
+                    onClick={() => setEditForm({...editForm, avatar: emoji})}
+                    className={`text-2xl p-2 rounded hover:bg-slate-800 border ${editForm.avatar === emoji ? 'border-blue-500 bg-slate-800' : 'border-transparent'}`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Banner Picker */}
+            <div className="mb-6">
+              <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Choose Theme</label>
+              <div className="grid grid-cols-5 gap-2">
+                {BANNERS.map(b => (
+                  <button 
+                    key={b.name}
+                    onClick={() => setEditForm({...editForm, banner: b.class})}
+                    className={`h-8 rounded-md bg-gradient-to-r ${b.class} border-2 ${editForm.banner === b.class ? 'border-white' : 'border-transparent'}`}
+                    title={b.name}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button onClick={handleSaveProfile} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-2 rounded font-bold">Save Changes</button>
+              <button onClick={() => setIsEditing(false)} className="px-4 py-2 text-slate-400 hover:text-white font-bold">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 👤 SOCIAL HEADER */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden relative">
-        {/* Banner */}
-        <div className="h-32 bg-gradient-to-r from-blue-900 via-slate-800 to-slate-900"></div>
+        {/* Dynamic Banner */}
+        <div className={`h-32 bg-gradient-to-r ${profile.banner}`}></div>
         
         <div className="px-6 pb-6">
           <div className="flex justify-between items-end -mt-12 mb-4">
             {/* Avatar & Name */}
             <div className="flex items-end gap-4">
               <div className="w-24 h-24 rounded-full bg-slate-950 border-4 border-slate-900 flex items-center justify-center text-4xl shadow-xl">
-                🧙‍♂️
+                {profile.avatar}
               </div>
               <div className="mb-1">
-                <h1 className="text-2xl font-black text-white capitalize">{username}</h1>
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl font-black text-white capitalize">{profile.username}</h1>
+                  {/* ✏️ EDIT BUTTON */}
+                  <button 
+                    onClick={() => setIsEditing(true)}
+                    className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1 rounded-full font-bold transition-all"
+                  >
+                    Edit Profile
+                  </button>
+                </div>
                 <p className="text-slate-500 text-sm">Joined 2025</p>
               </div>
             </div>
