@@ -10,7 +10,6 @@ const STATIONS = [
 
 export default function CurrentWeather() {
   const [weather, setWeather] = useState({});
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchWeather();
@@ -34,8 +33,6 @@ export default function CurrentWeather() {
       }
     } catch (error) {
       console.error('Weather error:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
