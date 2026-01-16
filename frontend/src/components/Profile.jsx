@@ -1,10 +1,50 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 
+// 🏅 BADGE DEFINITIONS
+const BADGE_RULES = [
+  {
+    id: 'rookie',
+    name: 'The Rookie',
+    icon: '🐣',
+    desc: 'Made your first prediction',
+    check: (history) => history.length >= 1
+  },
+  {
+    id: 'regular',
+    name: 'The Regular',
+    icon: '📅',
+    desc: 'Made 5+ predictions',
+    check: (history) => history.length >= 5
+  },
+  {
+    id: 'veteran',
+    name: 'The Veteran',
+    icon: '👴',
+    desc: 'Made 20+ predictions',
+    check: (history) => history.length >= 20
+  },
+  {
+    id: 'sharpshooter',
+    name: 'Sharpshooter',
+    icon: '🎯',
+    desc: 'Total Error under 2.0 on any day',
+    check: (history) => history.some(h => h.rawError !== null && h.rawError < 2.0)
+  },
+  {
+    id: 'rainman',
+    name: 'Rain Man',
+    icon: '☔',
+    desc: 'Perfect precipitation guess (0.00" diff)',
+    check: (history) => history.some(h => h.precipError === 0)
+  }
+];
+
 export default function Profile({ session }) {
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ total: 0, avgError: 0, bestStation: '--' });
+  const [stats, setStats] = useState({ total: 0, avgError: 0 });
   const [history, setHistory] = useState([]);
+  const [earnedBadges, setEarnedBadges] = useState([]);
 
   useEffect(() => {
     if (session) fetchProfileData();
@@ -14,7 +54,6 @@ export default function Profile({ session }) {
     try {
       const user = session.user;
       
-      // 1. Get all past predictions for this user
       const { data: preds, error } = await supabase
         .from('predictions')
         .select(`
@@ -26,18 +65,23 @@ export default function Profile({ session }) {
 
       if (error) throw error;
 
-      // 2. Calculate Stats
       if (preds && preds.length > 0) {
         let totalError = 0;
         let completedCount = 0;
         
-        // Simple history mapping
+        // Process History & Calculate Errors
         const formattedHistory = preds.map(p => {
-          // Calculate error only if we have actual weather data
           let dailyError = null;
+          let precipError = null; // Specific for Rain Man badge
+
           if (p.actual_weather) {
-            dailyError = Math.abs(p.p_high - p.actual_weather.temp) + 
-                         Math.abs(p.p_wind_speed - p.actual_weather.wind_speed);
+            // Error Formula: |Pred - Actual|
+            const tempErr = Math.abs(p.p_high - p.actual_weather.temp);
+            const windErr = Math.abs(p.p_wind_speed - p.actual_weather.wind_speed);
+            
+            dailyError = tempErr + windErr;
+            precipError = Math.abs((p.p_precip || 0) - (p.actual_weather.precip || 0));
+
             totalError += dailyError;
             completedCount++;
           }
@@ -47,15 +91,21 @@ export default function Profile({ session }) {
             station: p.station_id,
             prediction: `${p.p_high}°F / ${p.p_wind_speed}kt`,
             actual: p.actual_weather ? `${p.actual_weather.temp}°F` : 'Pending...',
-            error: dailyError !== null ? dailyError : '--'
+            error: dailyError !== null ? dailyError.toFixed(1) : '--',
+            rawError: dailyError, // Hidden field for math
+            precipError: precipError // Hidden field for badges
           };
         });
 
         setHistory(formattedHistory);
+        
+        // 🏅 CALCULATE BADGES
+        const earned = BADGE_RULES.filter(badge => badge.check(formattedHistory));
+        setEarnedBadges(earned);
+
         setStats({
           total: preds.length,
-          avgError: completedCount > 0 ? (totalError / completedCount).toFixed(1) : 0,
-          bestStation: 'TBD' // Placeholder for future logic
+          avgError: completedCount > 0 ? (totalError / completedCount).toFixed(1) : 0
         });
       }
     } catch (error) {
@@ -70,7 +120,7 @@ export default function Profile({ session }) {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       
-      {/* 🏆 HEADER STATS */}
+      {/* STATS HEADER */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl text-center">
           <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest">Total Forecasts</h3>
@@ -81,13 +131,35 @@ export default function Profile({ session }) {
           <p className="text-4xl font-black text-emerald-400 mt-2">{stats.avgError}</p>
           <span className="text-xs text-slate-500">Lower is better</span>
         </div>
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl text-center opacity-50">
-          <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest">Badges</h3>
-          <p className="text-xl font-bold text-slate-400 mt-4">Coming Soon</p>
+        
+        {/* BADGE COUNT */}
+        <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl text-center">
+          <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest">Badges Earned</h3>
+          <p className="text-4xl font-black text-yellow-400 mt-2">{earnedBadges.length} <span className="text-lg text-slate-600">/ {BADGE_RULES.length}</span></p>
         </div>
       </div>
 
-      {/* 📜 HISTORY LIST */}
+      {/* 🏆 TROPHY CASE (New!) */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden p-6">
+        <h2 className="text-white font-bold mb-4">Trophy Case</h2>
+        {earnedBadges.length > 0 ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {earnedBadges.map(badge => (
+              <div key={badge.id} className="bg-slate-950 border border-slate-800 p-4 rounded-lg flex flex-col items-center text-center transition-transform hover:scale-105">
+                <div className="text-4xl mb-2">{badge.icon}</div>
+                <div className="font-bold text-white text-sm">{badge.name}</div>
+                <div className="text-xs text-slate-500 mt-1">{badge.desc}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-slate-500 text-sm italic text-center py-4">
+            No badges yet. Start predicting to earn them!
+          </div>
+        )}
+      </div>
+
+      {/* HISTORY TABLE */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
         <div className="p-4 border-b border-slate-800">
           <h2 className="text-white font-bold">Prediction History</h2>
