@@ -25,11 +25,15 @@ export default function Profile({ session }) {
   const [chartData, setChartData] = useState([]);
   const [earnedBadges, setEarnedBadges] = useState([]);
   const [socials, setSocials] = useState({ followers: 0, following: 0 });
-  const [isFollowing, setIsFollowing] = useState(false); // Am I following this user?
+  const [isFollowing, setIsFollowing] = useState(false);
 
   // ✏️ Edit Mode
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
+
+  // 👥 Follower List Modal
+  const [followModal, setFollowModal] = useState(null); // 'followers' or 'following' or null
+  const [followList, setFollowList] = useState([]); // The actual list of users to show
 
   // Defaults
   const DEFAULT_BANNER = "https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?q=80&w=2000&auto=format&fit=crop";
@@ -41,10 +45,10 @@ export default function Profile({ session }) {
 
   const fetchProfileData = async () => {
     try {
-      const currentUser = session.user; // You (Logged in)
-      const targetUserId = currentUser.id; // For now, we are viewing YOUR profile. Later this can be dynamic.
+      const currentUser = session.user;
+      const targetUserId = currentUser.id; 
 
-      // 1. Fetch Profile Info
+      // 1. Fetch Profile
       let { data: profileData } = await supabase.from('profiles').select('*').eq('id', targetUserId).single();
       
       if (!profileData) {
@@ -60,7 +64,7 @@ export default function Profile({ session }) {
       setProfile(p);
       setEditForm(p);
 
-      // 2. Fetch Predictions & History
+      // 2. Fetch History
       const { data: preds } = await supabase.from('predictions').select(`*, actual_weather ( temp, wind_speed, precip )`).eq('user_id', targetUserId).order('prediction_date', { ascending: false });
 
       if (preds && preds.length > 0) {
@@ -90,7 +94,7 @@ export default function Profile({ session }) {
         setStats({ total: preds.length, avgError: completedCount > 0 ? (totalError / completedCount).toFixed(1) : 0 });
       }
 
-      // 3. Fetch Social Counts 👥
+      // 3. Fetch Social Counts
       const { count: followersCount } = await supabase
         .from('relationships')
         .select('*', { count: 'exact', head: true })
@@ -104,6 +108,36 @@ export default function Profile({ session }) {
       setSocials({ followers: followersCount || 0, following: followingCount || 0 });
 
     } catch (error) { console.error('Error:', error); } finally { setLoading(false); }
+  };
+
+  // 🔍 OPEN FOLLOW MODAL
+  const openFollowList = async (type) => {
+    setFollowModal(type);
+    setFollowList([]); // Clear old list
+    
+    try {
+      let data;
+      // Fetch the relationships first
+      if (type === 'followers') {
+        const { data: rels } = await supabase.from('relationships').select('follower_id').eq('following_id', profile.id);
+        const ids = rels.map(r => r.follower_id);
+        if (ids.length > 0) {
+          const { data: users } = await supabase.from('profiles').select('*').in('id', ids);
+          data = users;
+        }
+      } else {
+        const { data: rels } = await supabase.from('relationships').select('following_id').eq('follower_id', profile.id);
+        const ids = rels.map(r => r.following_id);
+        if (ids.length > 0) {
+          const { data: users } = await supabase.from('profiles').select('*').in('id', ids);
+          data = users;
+        }
+      }
+
+      setFollowList(data || []);
+    } catch (error) {
+      console.error("Error fetching list:", error);
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -121,7 +155,6 @@ export default function Profile({ session }) {
     } catch (error) { alert('Error saving profile!'); }
   };
 
-  // Only relevant when viewing OTHER people, but good to have ready
   const toggleFollow = async () => {
     if (isFollowing) {
       await supabase.from('relationships').delete().match({ follower_id: session.user.id, following_id: profile.id });
@@ -134,7 +167,6 @@ export default function Profile({ session }) {
   };
 
   if (loading) return <div className="text-white p-10 text-center">Loading Profile...</div>;
-
   const isOwnProfile = session.user.id === profile.id;
 
   return (
@@ -167,6 +199,33 @@ export default function Profile({ session }) {
         </div>
       )}
 
+      {/* 👥 FOLLOW LIST MODAL (New!) */}
+      {followModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+            <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950">
+              <h2 className="text-white font-bold text-lg capitalize">{followModal}</h2>
+              <button onClick={() => setFollowModal(null)} className="text-slate-500 hover:text-white font-bold">✕</button>
+            </div>
+            
+            <div className="p-4 overflow-y-auto flex-1 space-y-2">
+              {followList.length === 0 ? (
+                <p className="text-slate-500 text-center italic py-4">No one here yet.</p>
+              ) : (
+                followList.map(user => (
+                  <div key={user.id} className="flex items-center gap-3 p-2 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer">
+                    <img src={user.avatar_url || DEFAULT_AVATAR} alt="av" className="w-10 h-10 rounded-full object-cover bg-slate-950 border border-slate-700"/>
+                    <div>
+                      <p className="text-white font-bold text-sm">{user.username}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 👤 SOCIAL HEADER */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden relative group">
         <div className="h-48 bg-cover bg-center bg-slate-800" style={{ backgroundImage: `url(${profile.banner_url || DEFAULT_BANNER})` }}>
@@ -177,53 +236,34 @@ export default function Profile({ session }) {
           <div className="flex flex-col md:flex-row justify-between items-end -mt-16 mb-4">
             
             <div className="flex items-end gap-4">
-              {/* Avatar */}
               <div className="w-32 h-32 rounded-full bg-slate-950 border-4 border-slate-900 overflow-hidden shadow-2xl relative z-10">
                 <img src={profile.avatar_url || DEFAULT_AVATAR} alt="avatar" className="w-full h-full object-cover"/>
               </div>
-              
-              {/* Name & Joined */}
               <div className="mb-2 z-10">
                 <h1 className="text-3xl font-black text-white capitalize drop-shadow-lg">{profile.username}</h1>
                 <p className="text-slate-400 text-sm font-medium">Joined 2025</p>
               </div>
             </div>
 
-            {/* ACTION BUTTONS & STATS */}
             <div className="flex flex-col items-end gap-4 mt-4 md:mt-0 z-10">
               
-              {/* Follow Counts */}
+              {/* Clickable Follow Counts */}
               <div className="flex gap-6 text-sm bg-slate-950/50 backdrop-blur-sm p-3 rounded-lg border border-slate-800">
-                <div className="text-center">
-                  <span className="block font-bold text-white text-lg">{socials.followers}</span>
+                <button onClick={() => openFollowList('followers')} className="text-center group hover:bg-slate-800/50 p-1 rounded transition-colors">
+                  <span className="block font-bold text-white text-lg group-hover:text-blue-400 transition-colors">{socials.followers}</span>
                   <span className="text-slate-500 uppercase text-[10px] font-bold tracking-wider">Followers</span>
-                </div>
+                </button>
                 <div className="w-px bg-slate-800"></div>
-                <div className="text-center">
-                  <span className="block font-bold text-white text-lg">{socials.following}</span>
+                <button onClick={() => openFollowList('following')} className="text-center group hover:bg-slate-800/50 p-1 rounded transition-colors">
+                  <span className="block font-bold text-white text-lg group-hover:text-blue-400 transition-colors">{socials.following}</span>
                   <span className="text-slate-500 uppercase text-[10px] font-bold tracking-wider">Following</span>
-                </div>
+                </button>
               </div>
 
-              {/* Edit vs Follow Button */}
               {isOwnProfile ? (
-                <button 
-                  onClick={() => setIsEditing(true)} 
-                  className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 px-6 py-2 rounded-lg font-bold transition-all shadow-lg"
-                >
-                  Edit Profile
-                </button>
+                <button onClick={() => setIsEditing(true)} className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 px-6 py-2 rounded-lg font-bold transition-all shadow-lg">Edit Profile</button>
               ) : (
-                <button 
-                  onClick={toggleFollow}
-                  className={`px-8 py-2 rounded-lg font-bold transition-all shadow-lg ${
-                    isFollowing 
-                      ? 'bg-slate-800 text-slate-300 border border-slate-600' 
-                      : 'bg-blue-600 hover:bg-blue-500 text-white'
-                  }`}
-                >
-                  {isFollowing ? 'Unfollow' : 'Follow'}
-                </button>
+                <button onClick={toggleFollow} className={`px-8 py-2 rounded-lg font-bold transition-all shadow-lg ${isFollowing ? 'bg-slate-800 text-slate-300 border border-slate-600' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}>{isFollowing ? 'Unfollow' : 'Follow'}</button>
               )}
             </div>
 
@@ -231,7 +271,7 @@ export default function Profile({ session }) {
         </div>
       </div>
 
-      {/* STATS GRID */}
+      {/* STATS & CHARTS & HISTORY (Same as before) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl text-center">
           <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest">Total Forecasts</h3>
@@ -247,7 +287,6 @@ export default function Profile({ session }) {
         </div>
       </div>
 
-      {/* TROPHY CASE */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden p-6">
         <h2 className="text-white font-bold mb-4">Trophy Case</h2>
         {earnedBadges.length > 0 ? (
@@ -264,7 +303,6 @@ export default function Profile({ session }) {
         )}
       </div>
 
-      {/* CHARTS */}
       {chartData.length > 1 && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
            <h2 className="text-white font-bold mb-4">Accuracy Trend</h2>
@@ -282,29 +320,18 @@ export default function Profile({ session }) {
         </div>
       )}
 
-      {/* HISTORY TABLE */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
         <div className="p-4 border-b border-slate-800">
           <h2 className="text-white font-bold">Prediction History</h2>
         </div>
         <table className="w-full text-left text-sm text-slate-400">
           <thead className="bg-slate-950 text-slate-200 uppercase font-bold text-xs">
-            <tr>
-              <th className="p-4">Date</th>
-              <th className="p-4">Station</th>
-              <th className="p-4">Your Pick</th>
-              <th className="p-4">Actual</th>
-              <th className="p-4 text-right">Error Pts</th>
-            </tr>
+            <tr><th className="p-4">Date</th><th className="p-4">Station</th><th className="p-4">Your Pick</th><th className="p-4">Actual</th><th className="p-4 text-right">Error Pts</th></tr>
           </thead>
           <tbody className="divide-y divide-slate-800">
             {history.map((row, i) => (
               <tr key={i} className="hover:bg-slate-800/50">
-                <td className="p-4">{row.date}</td>
-                <td className="p-4 font-bold text-blue-400">{row.station}</td>
-                <td className="p-4">{row.prediction}</td>
-                <td className="p-4">{row.actual}</td>
-                <td className="p-4 text-right font-mono text-emerald-400">{row.error}</td>
+                <td className="p-4">{row.date}</td><td className="p-4 font-bold text-blue-400">{row.station}</td><td className="p-4">{row.prediction}</td><td className="p-4">{row.actual}</td><td className="p-4 text-right font-mono text-emerald-400">{row.error}</td>
               </tr>
             ))}
           </tbody>
