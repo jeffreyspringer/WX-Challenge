@@ -10,7 +10,8 @@ const BADGE_RULES = [
   { id: 'rainman', name: 'Rain Man', icon: '☔', desc: 'Perfect precip guess', check: h => h.some(i => i.precipError === 0) }
 ];
 
-export default function Profile({ session }) {
+// 🆕 UPDATED: Now accepts 'viewedId' prop to know WHICH profile to show
+export default function Profile({ session, viewedId }) {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState({ 
     id: '',
@@ -19,7 +20,6 @@ export default function Profile({ session }) {
     banner_url: '' 
   });
   
-  // 📊 Stats & Socials
   const [stats, setStats] = useState({ total: 0, avgError: 0 });
   const [history, setHistory] = useState([]);
   const [chartData, setChartData] = useState([]);
@@ -27,37 +27,40 @@ export default function Profile({ session }) {
   const [socials, setSocials] = useState({ followers: 0, following: 0 });
   const [isFollowing, setIsFollowing] = useState(false);
 
-  // ✏️ Edit Mode
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
 
-  // 👥 Follower List Modal
-  const [followModal, setFollowModal] = useState(null); // 'followers' or 'following' or null
-  const [followList, setFollowList] = useState([]); // The actual list of users to show
+  const [followModal, setFollowModal] = useState(null); 
+  const [followList, setFollowList] = useState([]);
 
-  // Defaults
   const DEFAULT_BANNER = "https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?q=80&w=2000&auto=format&fit=crop";
   const DEFAULT_AVATAR = "https://cdn-icons-png.flaticon.com/512/1144/1144760.png";
 
   useEffect(() => {
     if (session) fetchProfileData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session]);
+  }, [session, viewedId]); // 👈 RE-RUN IF VIEWED ID CHANGES
 
   const fetchProfileData = async () => {
     try {
       const currentUser = session.user;
-      const targetUserId = currentUser.id; 
+      
+      // 🆕 DECISION: Show 'viewedId' (Kevin) or 'currentUser' (You)
+      const targetUserId = viewedId || currentUser.id; 
 
       // 1. Fetch Profile
       let { data: profileData } = await supabase.from('profiles').select('*').eq('id', targetUserId).single();
       
       if (!profileData) {
-        profileData = { id: targetUserId, username: currentUser.email.split('@')[0], avatar_url: '', banner_url: '' };
+        // Fallback for new users
+        profileData = { id: targetUserId, username: 'Unknown User', avatar_url: '', banner_url: '' };
+        if (targetUserId === currentUser.id) {
+           profileData.username = currentUser.email.split('@')[0];
+        }
       }
 
       const p = { 
-        id: profileData.id,
+        id: profileData.id, // Important: Use the fetched ID, not session ID
         username: profileData.username, 
         avatar_url: profileData.avatar_url || '', 
         banner_url: profileData.banner_url || '' 
@@ -93,32 +96,34 @@ export default function Profile({ session }) {
         setChartData(formattedHistory.filter(h => h.rawError !== null).map(h => ({ date: h.date.slice(5), error: h.rawError })).reverse());
         setEarnedBadges(BADGE_RULES.filter(b => b.check(formattedHistory)));
         setStats({ total: preds.length, avgError: completedCount > 0 ? (totalError / completedCount).toFixed(1) : 0 });
+      } else {
+        // Clear old data if user has no predictions
+        setHistory([]);
+        setChartData([]);
+        setEarnedBadges([]);
+        setStats({ total: 0, avgError: 0 });
       }
 
       // 3. Fetch Social Counts
-      const { count: followersCount } = await supabase
-        .from('relationships')
-        .select('*', { count: 'exact', head: true })
-        .eq('following_id', targetUserId);
-
-      const { count: followingCount } = await supabase
-        .from('relationships')
-        .select('*', { count: 'exact', head: true })
-        .eq('follower_id', targetUserId);
-
+      const { count: followersCount } = await supabase.from('relationships').select('*', { count: 'exact', head: true }).eq('following_id', targetUserId);
+      const { count: followingCount } = await supabase.from('relationships').select('*', { count: 'exact', head: true }).eq('follower_id', targetUserId);
       setSocials({ followers: followersCount || 0, following: followingCount || 0 });
+
+      // 4. Am I following this person?
+      if (currentUser.id !== targetUserId) {
+        const { data: rel } = await supabase.from('relationships').select('*').match({ follower_id: currentUser.id, following_id: targetUserId }).single();
+        setIsFollowing(!!rel);
+      }
 
     } catch (error) { console.error('Error:', error); } finally { setLoading(false); }
   };
 
-  // 🔍 OPEN FOLLOW MODAL
   const openFollowList = async (type) => {
     setFollowModal(type);
-    setFollowList([]); // Clear old list
+    setFollowList([]); 
     
     try {
       let data;
-      // Fetch the relationships first
       if (type === 'followers') {
         const { data: rels } = await supabase.from('relationships').select('follower_id').eq('following_id', profile.id);
         const ids = rels.map(r => r.follower_id);
@@ -134,11 +139,8 @@ export default function Profile({ session }) {
           data = users;
         }
       }
-
       setFollowList(data || []);
-    } catch (error) {
-      console.error("Error fetching list:", error);
-    }
+    } catch (error) { console.error("Error fetching list:", error); }
   };
 
   const handleSaveProfile = async () => {
@@ -173,7 +175,6 @@ export default function Profile({ session }) {
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-10 relative">
       
-      {/* ✏️ EDIT MODAL */}
       {isEditing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-md shadow-2xl">
@@ -200,7 +201,6 @@ export default function Profile({ session }) {
         </div>
       )}
 
-      {/* 👥 FOLLOW LIST MODAL (New!) */}
       {followModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
@@ -227,7 +227,6 @@ export default function Profile({ session }) {
         </div>
       )}
 
-      {/* 👤 SOCIAL HEADER */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden relative group">
         <div className="h-48 bg-cover bg-center bg-slate-800" style={{ backgroundImage: `url(${profile.banner_url || DEFAULT_BANNER})` }}>
            <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent"></div>
@@ -248,7 +247,6 @@ export default function Profile({ session }) {
 
             <div className="flex flex-col items-end gap-4 mt-4 md:mt-0 z-10">
               
-              {/* Clickable Follow Counts */}
               <div className="flex gap-6 text-sm bg-slate-950/50 backdrop-blur-sm p-3 rounded-lg border border-slate-800">
                 <button onClick={() => openFollowList('followers')} className="text-center group hover:bg-slate-800/50 p-1 rounded transition-colors">
                   <span className="block font-bold text-white text-lg group-hover:text-blue-400 transition-colors">{socials.followers}</span>
@@ -272,7 +270,6 @@ export default function Profile({ session }) {
         </div>
       </div>
 
-      {/* STATS & CHARTS & HISTORY (Same as before) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl text-center">
           <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest">Total Forecasts</h3>
@@ -291,54 +288,4 @@ export default function Profile({ session }) {
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden p-6">
         <h2 className="text-white font-bold mb-4">Trophy Case</h2>
         {earnedBadges.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {earnedBadges.map(badge => (
-              <div key={badge.id} className="bg-slate-950 border border-slate-800 p-4 rounded-lg flex flex-col items-center text-center">
-                <div className="text-4xl mb-2">{badge.icon}</div>
-                <div className="font-bold text-white text-sm">{badge.name}</div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-slate-500 text-sm italic text-center py-4">No badges yet. Start predicting to earn them!</div>
-        )}
-      </div>
-
-      {chartData.length > 1 && (
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-           <h2 className="text-white font-bold mb-4">Accuracy Trend</h2>
-           <div className="h-64 w-full">
-             <ResponsiveContainer width="100%" height="100%">
-               <LineChart data={chartData}>
-                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                 <XAxis dataKey="date" stroke="#94a3b8" />
-                 <YAxis stroke="#94a3b8" />
-                 <Tooltip contentStyle={{ backgroundColor: '#0f172a' }} />
-                 <Line type="monotone" dataKey="error" stroke="#34d399" strokeWidth={3} dot={{ fill: '#34d399' }} />
-               </LineChart>
-             </ResponsiveContainer>
-           </div>
-        </div>
-      )}
-
-      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <div className="p-4 border-b border-slate-800">
-          <h2 className="text-white font-bold">Prediction History</h2>
-        </div>
-        <table className="w-full text-left text-sm text-slate-400">
-          <thead className="bg-slate-950 text-slate-200 uppercase font-bold text-xs">
-            <tr><th className="p-4">Date</th><th className="p-4">Station</th><th className="p-4">Your Pick</th><th className="p-4">Actual</th><th className="p-4 text-right">Error Pts</th></tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800">
-            {history.map((row, i) => (
-              <tr key={i} className="hover:bg-slate-800/50">
-                <td className="p-4">{row.date}</td><td className="p-4 font-bold text-blue-400">{row.station}</td><td className="p-4">{row.prediction}</td><td className="p-4">{row.actual}</td><td className="p-4 text-right font-mono text-emerald-400">{row.error}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-    </div>
-  );
-}
+          <div className="grid grid-cols-2
