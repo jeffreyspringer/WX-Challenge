@@ -7,7 +7,7 @@ import PredictionForm from './components/PredictionForm';
 import Leaderboard from './components/Leaderboard';
 import Profile from './components/Profile';
 import UserSearch from './components/UserSearch';
-import CurrentWeather from './components/CurrentWeather'; // NEW IMPORT
+import CurrentWeather from './components/CurrentWeather'; 
 
 function App() {
   const [session, setSession] = useState(null);
@@ -43,8 +43,15 @@ function App() {
     setLoading(false);
   };
 
-  const goToProfile = (userId) => { setTargetProfileId(userId); setView('profile'); };
-  const goHome = () => { setTargetProfileId(null); setView('dashboard'); };
+  const goToProfile = (userId) => { 
+    setTargetProfileId(userId); 
+    setView('profile'); 
+  };
+  
+  const goHome = () => { 
+    setTargetProfileId(null); 
+    setView('dashboard'); 
+  };
 
   if (loading) return <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">Loading...</div>;
 
@@ -96,7 +103,7 @@ function App() {
         {isOnboarding ? (
            <div className="max-w-xl mx-auto">
              <div className="bg-yellow-500/10 border border-yellow-500/50 text-yellow-200 p-4 rounded mb-4 text-center">⚠️ <strong>Action Required:</strong> Create a username to enter.</div>
-             <Profile session={session} onProfileUpdate={() => checkProfile(session.user.id)} />
+             <Profile session={session} viewedId={session.user.id} />
            </div>
         ) : (
           view === 'dashboard' ? (
@@ -110,7 +117,8 @@ function App() {
 
               {/* CENTER: PREDICTION FORM */}
               <div className="lg:col-span-1">
-                <PredictionForm userId={session.user.id} />
+                {/* 🛑 FIX 1: Pass 'session' not 'userId' */}
+                <PredictionForm session={session} />
               </div>
 
               {/* RIGHT: LEADERBOARD */}
@@ -120,7 +128,8 @@ function App() {
 
             </div>
           ) : (
-            <Profile session={session} targetUserId={targetProfileId} onBack={goHome} onNavigate={goToProfile} />
+            // 🛑 FIX 2: Pass 'viewedId' instead of 'targetUserId'
+            <Profile session={session} viewedId={targetProfileId} />
           )
         )}
       </main>
