@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 
-// 🗺️ NWS API ENDPOINTS (Pre-calculated for stability)
+// 🗺️ NWS API ENDPOINTS
 const STATION_URLS = {
-  KATL: 'https://api.weather.gov/gridpoints/FFC/52,86/forecast', // Atlanta
-  KORD: 'https://api.weather.gov/gridpoints/LOT/73,72/forecast', // Chicago
-  KDFW: 'https://api.weather.gov/gridpoints/FWD/88,103/forecast'  // Dallas
+  KATL: 'https://api.weather.gov/gridpoints/FFC/52,86/forecast',
+  KORD: 'https://api.weather.gov/gridpoints/LOT/73,72/forecast',
+  KDFW: 'https://api.weather.gov/gridpoints/FWD/88,103/forecast'
 };
 
 export default function PredictionForm({ session }) {
@@ -16,11 +16,10 @@ export default function PredictionForm({ session }) {
     windDir: '',
     precip: ''
   });
-  const [nwsForecast, setNwsForecast] = useState(null); // 🧠 The Intel
+  const [nwsForecast, setNwsForecast] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState(null); // 'success', 'error', 'closed'
+  const [status, setStatus] = useState(null); 
 
-  // 🕒 CALCULATE TARGET DATE (Tomorrow - Local Time)
   const getTargetDate = () => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
@@ -32,29 +31,25 @@ export default function PredictionForm({ session }) {
 
   const targetDate = getTargetDate();
 
-  // 📡 FETCH NWS INTEL
   useEffect(() => {
     async function fetchIntel() {
       setNwsForecast(null);
       try {
         const response = await fetch(STATION_URLS[station]);
         const data = await response.json();
-        
-        // Find "Tomorrow's" period (usually index 2 or 3 in the generic list)
-        // Simple logic: Find the first period that isDaytime AND has a high temp
         const periods = data.properties.periods;
         const tomorrow = periods.find(p => p.isDaytime && p.number >= 2);
 
         if (tomorrow) {
           setNwsForecast({
             temp: tomorrow.temperature,
-            wind: tomorrow.windSpeed, // Comes like "10 mph"
+            wind: tomorrow.windSpeed,
             shortForecast: tomorrow.shortForecast,
             icon: tomorrow.icon
           });
         }
       } catch (err) {
-        console.log("Could not fetch NWS Intel (Common if API is busy)");
+        console.log("Could not fetch NWS Intel");
       }
     }
     fetchIntel();
@@ -65,8 +60,9 @@ export default function PredictionForm({ session }) {
     setLoading(true);
     setStatus(null);
 
-    // 1. Validation
-    if (!formData.maxTemp || !formData.windSpeed || !formData.windDir || !formData.precip) {
+    // 🛑 FIXED VALIDATION: Now allows '0' as a valid number
+    // We only fail if the string is explicitly empty ('')
+    if (formData.maxTemp === '' || formData.windSpeed === '' || formData.windDir === '' || formData.precip === '') {
       setStatus('error');
       setLoading(false);
       return;
@@ -86,7 +82,6 @@ export default function PredictionForm({ session }) {
         submitted_at: new Date().toISOString()
       };
 
-      // 2. Upsert (Insert or Update if exists)
       const { error } = await supabase
         .from('predictions')
         .upsert(payload, { onConflict: 'user_id, station_id, prediction_date' });
@@ -94,7 +89,6 @@ export default function PredictionForm({ session }) {
       if (error) throw error;
 
       setStatus('success');
-      // Reset form (optional)
       setFormData({ maxTemp: '', windSpeed: '', windDir: '', precip: '' });
 
     } catch (error) {
@@ -105,24 +99,20 @@ export default function PredictionForm({ session }) {
     }
   };
 
-  // 🖱️ Helper to Fill Form with NWS Data
   const applyIntel = () => {
     if (!nwsForecast) return;
-    // Extract number from "10 mph" string
     const windNum = parseInt(nwsForecast.wind.split(' ')[0]) || 0; 
-    
     setFormData({
       ...formData,
       maxTemp: nwsForecast.temp,
       windSpeed: windNum,
-      precip: '0.00' // NWS doesn't give easy precip numbers in this API, assume 0 for baseline
+      precip: '0.00'
     });
   };
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl p-6">
       
-      {/* HEADER */}
       <div className="flex justify-between items-start mb-6">
         <div>
           <h2 className="text-xl font-bold text-white">Make Prediction</h2>
@@ -133,7 +123,6 @@ export default function PredictionForm({ session }) {
         <div className="text-2xl">📝</div>
       </div>
 
-      {/* 🧠 INTEL CARD (New!) */}
       {nwsForecast && (
         <div className="bg-blue-950/30 border border-blue-900/50 rounded-lg p-3 mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -146,11 +135,7 @@ export default function PredictionForm({ session }) {
               <p className="text-[10px] text-slate-400 italic">{nwsForecast.shortForecast}</p>
             </div>
           </div>
-          <button 
-            onClick={applyIntel}
-            type="button"
-            className="text-[10px] bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded font-bold transition-colors"
-          >
+          <button onClick={applyIntel} type="button" className="text-[10px] bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded font-bold transition-colors">
             USE THIS
           </button>
         </div>
@@ -158,7 +143,6 @@ export default function PredictionForm({ session }) {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         
-        {/* STATION SELECTOR */}
         <div className="grid grid-cols-3 gap-2 bg-slate-950 p-1 rounded-lg">
           {['KATL', 'KORD', 'KDFW'].map((s) => (
             <button
@@ -166,9 +150,7 @@ export default function PredictionForm({ session }) {
               type="button"
               onClick={() => setStation(s)}
               className={`py-2 text-sm font-bold rounded transition-all ${
-                station === s 
-                  ? 'bg-blue-600 text-white shadow-lg' 
-                  : 'text-slate-500 hover:text-slate-300'
+                station === s ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'
               }`}
             >
               {s}
@@ -176,67 +158,31 @@ export default function PredictionForm({ session }) {
           ))}
         </div>
 
-        {/* INPUTS GRID */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Max Temp (°F)</label>
-            <input
-              type="number"
-              step="0.1"
-              value={formData.maxTemp}
-              onChange={e => setFormData({...formData, maxTemp: e.target.value})}
-              className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white font-mono focus:border-blue-500 outline-none transition-colors"
-              placeholder="72.0"
-            />
+            <input type="number" step="0.1" value={formData.maxTemp} onChange={e => setFormData({...formData, maxTemp: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white font-mono focus:border-blue-500 outline-none transition-colors" placeholder="72.0" />
           </div>
           <div>
             <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Precip (in)</label>
-            <input
-              type="number"
-              step="0.01"
-              value={formData.precip}
-              onChange={e => setFormData({...formData, precip: e.target.value})}
-              className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white font-mono focus:border-blue-500 outline-none transition-colors"
-              placeholder="0.00"
-            />
+            <input type="number" step="0.01" value={formData.precip} onChange={e => setFormData({...formData, precip: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white font-mono focus:border-blue-500 outline-none transition-colors" placeholder="0.00" />
           </div>
           <div>
             <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Wind Spd (kt)</label>
-            <input
-              type="number"
-              value={formData.windSpeed}
-              onChange={e => setFormData({...formData, windSpeed: e.target.value})}
-              className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white font-mono focus:border-blue-500 outline-none transition-colors"
-              placeholder="12"
-            />
+            <input type="number" value={formData.windSpeed} onChange={e => setFormData({...formData, windSpeed: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white font-mono focus:border-blue-500 outline-none transition-colors" placeholder="12" />
           </div>
           <div>
             <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Wind Dir (0-360)</label>
-            <input
-              type="number"
-              value={formData.windDir}
-              onChange={e => setFormData({...formData, windDir: e.target.value})}
-              className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white font-mono focus:border-blue-500 outline-none transition-colors"
-              placeholder="270"
-            />
+            <input type="number" value={formData.windDir} onChange={e => setFormData({...formData, windDir: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white font-mono focus:border-blue-500 outline-none transition-colors" placeholder="270" />
           </div>
         </div>
 
-        {/* SUBMIT BUTTON */}
-        <button
-          type="submit"
-          disabled={loading}
-          className={`w-full py-3 rounded font-black tracking-widest uppercase transition-all ${
-            status === 'success' 
-              ? 'bg-emerald-500 text-white' 
-              : 'bg-blue-600 hover:bg-blue-500 text-white'
-          }`}
-        >
+        <button type="submit" disabled={loading} className={`w-full py-3 rounded font-black tracking-widest uppercase transition-all ${status === 'success' ? 'bg-emerald-500 text-white' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}>
           {loading ? 'Saving...' : status === 'success' ? 'Locked In! 🔒' : 'Lock It In'}
         </button>
 
         {status === 'error' && (
-          <p className="text-center text-red-400 text-xs font-bold">⚠️ Please fill out all fields</p>
+          <p className="text-center text-red-400 text-xs font-bold animate-pulse">⚠️ Please fill out all fields</p>
         )}
 
       </form>
