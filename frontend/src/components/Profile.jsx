@@ -41,6 +41,7 @@ export default function Profile({ session }) {
 
   useEffect(() => {
     if (session) fetchProfileData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
   const fetchProfileData = async () => {
