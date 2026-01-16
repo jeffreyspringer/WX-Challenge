@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 
+// ✈️ UPDATED: Now includes Timezones!
 const STATIONS = [
-  { id: 'KATL', name: 'Atlanta' },
-  { id: 'KORD', name: 'Chicago' },
-  { id: 'KDFW', name: 'Dallas' }
+  { id: 'KATL', name: 'Atlanta', timezone: 'America/New_York' },
+  { id: 'KORD', name: 'Chicago', timezone: 'America/Chicago' },
+  { id: 'KDFW', name: 'Dallas', timezone: 'America/Chicago' }
 ];
 
 export default function CurrentWeather() {
@@ -38,25 +39,29 @@ export default function CurrentWeather() {
     }
   };
 
-  // 🌡️ CONVERSION HELPER: Celsius -> Fahrenheit (1 Decimal)
   const toFahrenheit = (celsius) => {
     if (celsius === null || celsius === undefined) return '--';
     const f = (celsius * 9/5) + 32;
     return f.toFixed(1);
   };
 
-  // 💨 WIND HELPER
   const formatWind = (val) => {
     if (val === null || val === undefined) return '--';
     return Number(val).toFixed(1);
   };
 
-  // 🕒 TIME HELPER (Strict Fallback)
-  const formatTime = (isoString) => {
+  // 🕒 TIME HELPER: Now respects the specific Station Timezone
+  const formatTime = (isoString, timeZone) => {
     if (!isoString) return '--:--';
     const date = new Date(isoString);
-    if (isNaN(date.getTime())) return '--:--'; // Handle invalid dates
-    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    if (isNaN(date.getTime())) return '--:--';
+    
+    // Force the browser to format for the specific airport timezone
+    return date.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      timeZone: timeZone 
+    });
   };
 
   return (
@@ -72,14 +77,13 @@ export default function CurrentWeather() {
           return (
             <div key={s.id} className="bg-slate-950/50 border border-slate-800 rounded-lg p-4 transition-all hover:border-slate-700">
               
-              {/* TOP ROW: Name & Status */}
+              {/* TOP ROW: Name & Time */}
               <div className="flex justify-between items-center mb-3">
                 <span className="font-black text-blue-400 text-xl tracking-widest">{s.id}</span>
                 {data ? (
                   <div className="flex items-center gap-2">
-                    {/* TIMESTAMP - Will show --:-- if empty */}
                     <span className="text-[10px] text-slate-500 font-mono font-bold">
-                      {formatTime(data.updated_at)}
+                      {formatTime(data.updated_at, s.timezone)}
                     </span>
                     <span className="text-[10px] uppercase font-bold bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">
                       Live
@@ -94,7 +98,6 @@ export default function CurrentWeather() {
 
               {data ? (
                 <>
-                  {/* MIDDLE: BIG CURRENT TEMP (Converted) */}
                   <div className="flex items-end gap-2 mb-4">
                     <div className="text-5xl font-black text-white">
                       {toFahrenheit(data.current_temp)}°F
@@ -104,37 +107,27 @@ export default function CurrentWeather() {
                     </div>
                   </div>
 
-                  {/* BOTTOM GRID: High/Low/Wind/Precip */}
                   <div className="grid grid-cols-4 gap-2 text-center bg-slate-900/80 rounded-lg p-2 border border-slate-800">
-                    
-                    {/* HIGH (Converted) */}
                     <div className="flex flex-col">
                       <span className="text-[10px] text-slate-500 uppercase font-bold">High</span>
                       <span className="text-emerald-400 font-mono font-bold">
                         {toFahrenheit(data.temp)}°F
                       </span>
                     </div>
-
-                    {/* LOW (Converted) */}
                     <div className="flex flex-col border-l border-slate-800">
                       <span className="text-[10px] text-slate-500 uppercase font-bold">Low</span>
                       <span className="text-blue-400 font-mono font-bold">
                         {toFahrenheit(data.min_temp)}°F
                       </span>
                     </div>
-
-                    {/* WIND (Decimal) */}
                     <div className="flex flex-col border-l border-slate-800">
                       <span className="text-[10px] text-slate-500 uppercase font-bold">Wind</span>
                       <span className="text-white font-mono font-bold">{formatWind(data.wind_speed)}kt</span>
                     </div>
-
-                    {/* PRECIP */}
                     <div className="flex flex-col border-l border-slate-800">
                       <span className="text-[10px] text-slate-500 uppercase font-bold">Rain</span>
                       <span className="text-white font-mono font-bold">{data.precip}"</span>
                     </div>
-
                   </div>
                 </>
               ) : (
