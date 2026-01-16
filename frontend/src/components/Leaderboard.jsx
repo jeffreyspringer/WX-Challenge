@@ -73,6 +73,7 @@ export default function Leaderboard() {
     fetchData();
     const sub = supabase.channel('live').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'actual_weather' }, () => fetchData()).subscribe();
     return () => supabase.removeChannel(sub);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
 
   return (
