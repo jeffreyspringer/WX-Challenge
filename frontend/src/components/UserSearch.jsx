@@ -4,7 +4,6 @@ import { supabase } from '../supabaseClient';
 export default function UserSearch({ onSelectUser }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
-  const [searching, setSearching] = useState(false);
 
   const handleSearch = async (e) => {
     const value = e.target.value;
@@ -15,7 +14,6 @@ export default function UserSearch({ onSelectUser }) {
       return;
     }
 
-    setSearching(true);
     const { data } = await supabase
       .from('profiles')
       .select('id, username, avatar_url')
@@ -23,7 +21,6 @@ export default function UserSearch({ onSelectUser }) {
       .limit(5);
 
     setResults(data || []);
-    setSearching(false);
   };
 
   return (
