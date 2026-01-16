@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
-// 📈 NEW IMPORTS
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-// 🏅 BADGE DEFINITIONS (Same as before)
+// 🏅 BADGE DEFINITIONS
 const BADGE_RULES = [
   { id: 'rookie', name: 'The Rookie', icon: '🐣', desc: 'Made your first prediction', check: h => h.length >= 1 },
   { id: 'regular', name: 'The Regular', icon: '📅', desc: 'Made 5+ predictions', check: h => h.length >= 5 },
@@ -16,8 +15,11 @@ export default function Profile({ session }) {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, avgError: 0 });
   const [history, setHistory] = useState([]);
-  const [chartData, setChartData] = useState([]); // 📊 Data for Graph
+  const [chartData, setChartData] = useState([]);
   const [earnedBadges, setEarnedBadges] = useState([]);
+  
+  // 👤 SOCIAL STATE (New!)
+  const [socials, setSocials] = useState({ followers: 0, following: 0 });
 
   useEffect(() => {
     if (session) fetchProfileData();
@@ -27,6 +29,7 @@ export default function Profile({ session }) {
     try {
       const user = session.user;
       
+      // 1. Fetch Predictions
       const { data: preds, error } = await supabase
         .from('predictions')
         .select(`*, actual_weather ( temp, wind_speed, precip )`)
@@ -35,6 +38,7 @@ export default function Profile({ session }) {
 
       if (error) throw error;
 
+      // 2. Process Stats & History
       if (preds && preds.length > 0) {
         let totalError = 0;
         let completedCount = 0;
@@ -66,16 +70,12 @@ export default function Profile({ session }) {
 
         setHistory(formattedHistory);
         
-        // 📊 PREPARE CHART DATA (Reverse so it goes Left-to-Right in time)
-        // Only show completed days
         const graphPoints = formattedHistory
           .filter(h => h.rawError !== null)
-          .map(h => ({ date: h.date.slice(5), error: h.rawError })) // "12-19" format
+          .map(h => ({ date: h.date.slice(5), error: h.rawError }))
           .reverse();
         
         setChartData(graphPoints);
-
-        // Badges & Stats
         setEarnedBadges(BADGE_RULES.filter(b => b.check(formattedHistory)));
         setStats({
           total: preds.length,
@@ -91,10 +91,46 @@ export default function Profile({ session }) {
 
   if (loading) return <div className="text-white p-10 text-center">Loading Profile...</div>;
 
+  // 🎨 HELPER: Get username from email (user@gmail.com -> user)
+  const username = session?.user?.email ? session.user.email.split('@')[0] : 'WeatherWizard';
+
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="max-w-4xl mx-auto space-y-8 pb-10">
       
-      {/* 1. STATS HEADER */}
+      {/* 👤 SOCIAL HEADER (Restored!) */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden relative">
+        {/* Banner */}
+        <div className="h-32 bg-gradient-to-r from-blue-900 via-slate-800 to-slate-900"></div>
+        
+        <div className="px-6 pb-6">
+          <div className="flex justify-between items-end -mt-12 mb-4">
+            {/* Avatar & Name */}
+            <div className="flex items-end gap-4">
+              <div className="w-24 h-24 rounded-full bg-slate-950 border-4 border-slate-900 flex items-center justify-center text-4xl shadow-xl">
+                🧙‍♂️
+              </div>
+              <div className="mb-1">
+                <h1 className="text-2xl font-black text-white capitalize">{username}</h1>
+                <p className="text-slate-500 text-sm">Joined 2025</p>
+              </div>
+            </div>
+            
+            {/* Follow Counts */}
+            <div className="flex gap-6 text-sm mb-2">
+              <div className="text-center">
+                <span className="block font-bold text-white text-lg">{socials.followers}</span>
+                <span className="text-slate-500 uppercase text-[10px] font-bold">Followers</span>
+              </div>
+              <div className="text-center">
+                <span className="block font-bold text-white text-lg">{socials.following}</span>
+                <span className="text-slate-500 uppercase text-[10px] font-bold">Following</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 📊 STATS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl text-center">
           <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest">Total Forecasts</h3>
@@ -111,7 +147,7 @@ export default function Profile({ session }) {
         </div>
       </div>
 
-      {/* 2. TROPHY CASE */}
+      {/* 🏆 TROPHY CASE */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden p-6">
         <h2 className="text-white font-bold mb-4">Trophy Case</h2>
         {earnedBadges.length > 0 ? (
@@ -131,7 +167,7 @@ export default function Profile({ session }) {
         )}
       </div>
 
-      {/* 3. PERFORMANCE CHART (New!) */}
+      {/* 📈 CHART */}
       {chartData.length > 1 && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
            <h2 className="text-white font-bold mb-4">Accuracy Trend <span className="text-xs text-slate-500 font-normal">(Points of Error)</span></h2>
@@ -159,7 +195,7 @@ export default function Profile({ session }) {
         </div>
       )}
 
-      {/* 4. HISTORY TABLE */}
+      {/* 📜 HISTORY TABLE */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
         <div className="p-4 border-b border-slate-800">
           <h2 className="text-white font-bold">Prediction History</h2>
