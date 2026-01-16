@@ -10,7 +10,6 @@ const BADGE_RULES = [
   { id: 'rainman', name: 'Rain Man', icon: '☔', desc: 'Perfect precip guess', check: h => h.some(i => i.precipError === 0) }
 ];
 
-// 🆕 UPDATED: Now accepts 'viewedId' prop to know WHICH profile to show
 export default function Profile({ session, viewedId }) {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState({ 
@@ -39,20 +38,17 @@ export default function Profile({ session, viewedId }) {
   useEffect(() => {
     if (session) fetchProfileData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, viewedId]); // 👈 RE-RUN IF VIEWED ID CHANGES
+  }, [session, viewedId]);
 
   const fetchProfileData = async () => {
     try {
       const currentUser = session.user;
-      
-      // 🆕 DECISION: Show 'viewedId' (Kevin) or 'currentUser' (You)
       const targetUserId = viewedId || currentUser.id; 
 
       // 1. Fetch Profile
       let { data: profileData } = await supabase.from('profiles').select('*').eq('id', targetUserId).single();
       
       if (!profileData) {
-        // Fallback for new users
         profileData = { id: targetUserId, username: 'Unknown User', avatar_url: '', banner_url: '' };
         if (targetUserId === currentUser.id) {
            profileData.username = currentUser.email.split('@')[0];
@@ -60,7 +56,7 @@ export default function Profile({ session, viewedId }) {
       }
 
       const p = { 
-        id: profileData.id, // Important: Use the fetched ID, not session ID
+        id: profileData.id,
         username: profileData.username, 
         avatar_url: profileData.avatar_url || '', 
         banner_url: profileData.banner_url || '' 
@@ -69,7 +65,10 @@ export default function Profile({ session, viewedId }) {
       setEditForm(p);
 
       // 2. Fetch History
-      const { data: preds } = await supabase.from('predictions').select(`*, actual_weather ( temp, wind_speed, precip )`).eq('user_id', targetUserId).order('prediction_date', { ascending: false });
+      const { data: preds } = await supabase.from('predictions')
+        .select(`*, actual_weather ( temp, wind_speed, precip )`)
+        .eq('user_id', targetUserId)
+        .order('prediction_date', { ascending: false });
 
       if (preds && preds.length > 0) {
         let totalError = 0;
@@ -97,7 +96,6 @@ export default function Profile({ session, viewedId }) {
         setEarnedBadges(BADGE_RULES.filter(b => b.check(formattedHistory)));
         setStats({ total: preds.length, avgError: completedCount > 0 ? (totalError / completedCount).toFixed(1) : 0 });
       } else {
-        // Clear old data if user has no predictions
         setHistory([]);
         setChartData([]);
         setEarnedBadges([]);
@@ -109,7 +107,7 @@ export default function Profile({ session, viewedId }) {
       const { count: followingCount } = await supabase.from('relationships').select('*', { count: 'exact', head: true }).eq('follower_id', targetUserId);
       setSocials({ followers: followersCount || 0, following: followingCount || 0 });
 
-      // 4. Am I following this person?
+      // 4. Check Following Status
       if (currentUser.id !== targetUserId) {
         const { data: rel } = await supabase.from('relationships').select('*').match({ follower_id: currentUser.id, following_id: targetUserId }).single();
         setIsFollowing(!!rel);
@@ -121,7 +119,6 @@ export default function Profile({ session, viewedId }) {
   const openFollowList = async (type) => {
     setFollowModal(type);
     setFollowList([]); 
-    
     try {
       let data;
       if (type === 'followers') {
@@ -208,7 +205,6 @@ export default function Profile({ session, viewedId }) {
               <h2 className="text-white font-bold text-lg capitalize">{followModal}</h2>
               <button onClick={() => setFollowModal(null)} className="text-slate-500 hover:text-white font-bold">✕</button>
             </div>
-            
             <div className="p-4 overflow-y-auto flex-1 space-y-2">
               {followList.length === 0 ? (
                 <p className="text-slate-500 text-center italic py-4">No one here yet.</p>
@@ -216,9 +212,7 @@ export default function Profile({ session, viewedId }) {
                 followList.map(user => (
                   <div key={user.id} className="flex items-center gap-3 p-2 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer">
                     <img src={user.avatar_url || DEFAULT_AVATAR} alt="av" className="w-10 h-10 rounded-full object-cover bg-slate-950 border border-slate-700"/>
-                    <div>
-                      <p className="text-white font-bold text-sm">{user.username}</p>
-                    </div>
+                    <div><p className="text-white font-bold text-sm">{user.username}</p></div>
                   </div>
                 ))
               )}
@@ -231,10 +225,8 @@ export default function Profile({ session, viewedId }) {
         <div className="h-48 bg-cover bg-center bg-slate-800" style={{ backgroundImage: `url(${profile.banner_url || DEFAULT_BANNER})` }}>
            <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent"></div>
         </div>
-        
         <div className="px-6 pb-6 relative">
           <div className="flex flex-col md:flex-row justify-between items-end -mt-16 mb-4">
-            
             <div className="flex items-end gap-4">
               <div className="w-32 h-32 rounded-full bg-slate-950 border-4 border-slate-900 overflow-hidden shadow-2xl relative z-10">
                 <img src={profile.avatar_url || DEFAULT_AVATAR} alt="avatar" className="w-full h-full object-cover"/>
@@ -244,9 +236,7 @@ export default function Profile({ session, viewedId }) {
                 <p className="text-slate-400 text-sm font-medium">Joined 2025</p>
               </div>
             </div>
-
             <div className="flex flex-col items-end gap-4 mt-4 md:mt-0 z-10">
-              
               <div className="flex gap-6 text-sm bg-slate-950/50 backdrop-blur-sm p-3 rounded-lg border border-slate-800">
                 <button onClick={() => openFollowList('followers')} className="text-center group hover:bg-slate-800/50 p-1 rounded transition-colors">
                   <span className="block font-bold text-white text-lg group-hover:text-blue-400 transition-colors">{socials.followers}</span>
@@ -258,14 +248,12 @@ export default function Profile({ session, viewedId }) {
                   <span className="text-slate-500 uppercase text-[10px] font-bold tracking-wider">Following</span>
                 </button>
               </div>
-
               {isOwnProfile ? (
                 <button onClick={() => setIsEditing(true)} className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 px-6 py-2 rounded-lg font-bold transition-all shadow-lg">Edit Profile</button>
               ) : (
                 <button onClick={toggleFollow} className={`px-8 py-2 rounded-lg font-bold transition-all shadow-lg ${isFollowing ? 'bg-slate-800 text-slate-300 border border-slate-600' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}>{isFollowing ? 'Unfollow' : 'Follow'}</button>
               )}
             </div>
-
           </div>
         </div>
       </div>
@@ -288,4 +276,64 @@ export default function Profile({ session, viewedId }) {
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden p-6">
         <h2 className="text-white font-bold mb-4">Trophy Case</h2>
         {earnedBadges.length > 0 ? (
-          <div className="grid grid-cols-2
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {earnedBadges.map(badge => (
+              <div key={badge.id} className="bg-slate-950 border border-slate-800 p-4 rounded-lg flex flex-col items-center text-center">
+                <div className="text-4xl mb-2">{badge.icon}</div>
+                <div className="font-bold text-white text-sm">{badge.name}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-slate-500 text-sm italic text-center py-4">No badges yet. Start predicting to earn them!</div>
+        )}
+      </div>
+
+      {chartData.length > 1 && (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+           <h2 className="text-white font-bold mb-4">Accuracy Trend</h2>
+           <div className="h-64 w-full">
+             <ResponsiveContainer width="100%" height="100%">
+               <LineChart data={chartData}>
+                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                 <XAxis dataKey="date" stroke="#94a3b8" />
+                 <YAxis stroke="#94a3b8" />
+                 <Tooltip contentStyle={{ backgroundColor: '#0f172a' }} />
+                 <Line type="monotone" dataKey="error" stroke="#34d399" strokeWidth={3} dot={{ fill: '#34d399' }} />
+               </LineChart>
+             </ResponsiveContainer>
+           </div>
+        </div>
+      )}
+
+      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+        <div className="p-4 border-b border-slate-800">
+          <h2 className="text-white font-bold">Prediction History</h2>
+        </div>
+        <table className="w-full text-left text-sm text-slate-400">
+          <thead className="bg-slate-950 text-slate-200 uppercase font-bold text-xs">
+            <tr>
+              <th className="p-4">Date</th>
+              <th className="p-4">Station</th>
+              <th className="p-4">Your Pick</th>
+              <th className="p-4">Actual</th>
+              <th className="p-4 text-right">Error Pts</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800">
+            {history.map((row, i) => (
+              <tr key={i} className="hover:bg-slate-800/50">
+                <td className="p-4">{row.date}</td>
+                <td className="p-4 font-bold text-blue-400">{row.station}</td>
+                <td className="p-4">{row.prediction}</td>
+                <td className="p-4">{row.actual}</td>
+                <td className="p-4 text-right font-mono text-emerald-400">{row.error}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  );
+}
