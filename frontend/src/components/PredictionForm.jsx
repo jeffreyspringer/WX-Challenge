@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react'; // 👈 REMOVED 'useEffect' to fix the build error
 import { supabase } from '../supabaseClient';
 
 const STATIONS = ['KATL', 'KORD', 'KDFW'];
@@ -73,9 +73,6 @@ export default function PredictionForm({ session }) {
       if (error) throw error;
 
       setMessage({ type: 'success', text: `Locked in ${station}! 🔒` });
-      
-      // Optional: Clear form after success? 
-      // For now, we keep it so they can see what they submitted.
       
     } catch (error) {
       console.error('Error submitting:', error);
