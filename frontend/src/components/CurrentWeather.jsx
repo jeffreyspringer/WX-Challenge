@@ -1,140 +1,117 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../supabaseClient';
 
-// ✈️ UPDATED: Now includes Timezones!
+// NWS API Endpoints (Grid Points)
 const STATIONS = [
-  { id: 'KATL', name: 'Atlanta', timezone: 'America/New_York' },
-  { id: 'KORD', name: 'Chicago', timezone: 'America/Chicago' },
-  { id: 'KDFW', name: 'Dallas', timezone: 'America/Chicago' }
+  { id: 'KATL', name: 'Atlanta', url: 'https://api.weather.gov/gridpoints/FFC/52,88/forecast' },
+  { id: 'KORD', name: 'Chicago', url: 'https://api.weather.gov/gridpoints/LOT/73,72/forecast' },
+  { id: 'KDFW', name: 'Dallas', url: 'https://api.weather.gov/gridpoints/FWD/88,103/forecast' }
 ];
 
 export default function CurrentWeather() {
   const [weather, setWeather] = useState({});
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchWeather();
-    const interval = setInterval(fetchWeather, 300000); // Refresh every 5m
+    fetchLiveWeather();
+    const interval = setInterval(fetchLiveWeather, 600000); // Refresh every 10m
     return () => clearInterval(interval);
   }, []);
 
-  const fetchWeather = async () => {
+  const fetchLiveWeather = async () => {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const results = {};
       
-      const { data } = await supabase
-        .from('actual_weather')
-        .select('*')
-        .eq('date', today);
+      // Fetch all stations in parallel
+      await Promise.all(STATIONS.map(async (station) => {
+        try {
+          const res = await fetch(station.url);
+          const data = await res.json();
+          const periods = data.properties.periods;
+          
+          // Find "Today" (Daytime) and "Tonight"
+          // NWS returns an array. Index 0 is usually the current period.
+          const current = periods[0]; 
+          const isDaytime = current.isDaytime;
+          
+          results[station.id] = {
+            temp: current.temperature,
+            wind: current.windSpeed,
+            icon: current.icon,
+            shortForecast: current.shortForecast,
+            isDaytime: isDaytime
+          };
+        } catch (err) {
+          console.error(`Failed to load ${station.id}`, err);
+          results[station.id] = null;
+        }
+      }));
 
-      if (data) {
-        const map = {};
-        data.forEach(w => map[w.station_id] = w);
-        setWeather(map);
-      }
+      setWeather(results);
     } catch (error) {
       console.error('Weather error:', error);
+    } finally {
+      setLoading(false);
     }
-  };
-
-  const toFahrenheit = (celsius) => {
-    if (celsius === null || celsius === undefined) return '--';
-    const f = (celsius * 9/5) + 32;
-    return f.toFixed(1);
-  };
-
-  const formatWind = (val) => {
-    if (val === null || val === undefined) return '--';
-    return Number(val).toFixed(1);
-  };
-
-  // 🕒 TIME HELPER: Now respects the specific Station Timezone
-  const formatTime = (isoString, timeZone) => {
-    if (!isoString) return '--:--';
-    const date = new Date(isoString);
-    if (isNaN(date.getTime())) return '--:--';
-    
-    // Force the browser to format for the specific airport timezone
-    return date.toLocaleTimeString('en-US', { 
-      hour: 'numeric', 
-      minute: '2-digit',
-      timeZone: timeZone 
-    });
   };
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl h-full flex flex-col">
       <div className="bg-slate-950 p-4 border-b border-slate-800 flex justify-between items-center">
-        <h2 className="text-white font-bold text-lg">Current Conditions</h2>
+        <h2 className="text-white font-bold text-lg">Live Conditions (NWS)</h2>
         <span className="text-2xl animate-pulse">📡</span>
       </div>
 
       <div className="p-4 space-y-4 flex-1 overflow-y-auto">
-        {STATIONS.map(s => {
-          const data = weather[s.id];
-          return (
-            <div key={s.id} className="bg-slate-950/50 border border-slate-800 rounded-lg p-4 transition-all hover:border-slate-700">
-              
-              {/* TOP ROW: Name & Time */}
-              <div className="flex justify-between items-center mb-3">
-                <span className="font-black text-blue-400 text-xl tracking-widest">{s.id}</span>
-                {data ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-slate-500 font-mono font-bold">
-                      {formatTime(data.updated_at, s.timezone)}
-                    </span>
+        {loading ? (
+          <div className="text-center text-slate-500 italic py-10">Fetching live satellite data...</div>
+        ) : (
+          STATIONS.map(s => {
+            const data = weather[s.id];
+            return (
+              <div key={s.id} className="bg-slate-950/50 border border-slate-800 rounded-lg p-4 transition-all hover:border-slate-700 relative overflow-hidden">
+                
+                {/* TOP ROW: Name & Status */}
+                <div className="flex justify-between items-center mb-3 relative z-10">
+                  <span className="font-black text-blue-400 text-xl tracking-widest">{s.id}</span>
+                  {data ? (
                     <span className="text-[10px] uppercase font-bold bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">
-                      Live
+                      Live Feed
                     </span>
+                  ) : (
+                    <span className="text-[10px] uppercase font-bold bg-red-500/10 text-red-400 px-2 py-0.5 rounded border border-red-500/20">
+                      Offline
+                    </span>
+                  )}
+                </div>
+
+                {data ? (
+                  <div className="relative z-10 flex justify-between items-center">
+                    <div>
+                      <div className="text-5xl font-black text-white mb-1">
+                        {data.temp}°F
+                      </div>
+                      <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-2">
+                         {data.wind}
+                      </div>
+                      <div className="text-sm text-emerald-400 font-medium">
+                        {data.shortForecast}
+                      </div>
+                    </div>
+                    
+                    {/* Weather Icon */}
+                    <div className="w-16 h-16 rounded-full bg-slate-800 border-2 border-slate-700 overflow-hidden shadow-lg">
+                      <img src={data.icon} alt="wx" className="w-full h-full object-cover" />
+                    </div>
                   </div>
                 ) : (
-                  <span className="text-[10px] uppercase font-bold bg-slate-800 text-slate-500 px-2 py-0.5 rounded">
-                    Offline
-                  </span>
+                  <div className="text-center py-4 relative z-10">
+                    <p className="text-slate-600 text-xs italic">Signal Lost</p>
+                  </div>
                 )}
               </div>
-
-              {data ? (
-                <>
-                  <div className="flex items-end gap-2 mb-4">
-                    <div className="text-5xl font-black text-white">
-                      {toFahrenheit(data.current_temp)}°F
-                    </div>
-                    <div className="text-sm text-slate-500 font-bold mb-2 uppercase tracking-wider">
-                      Now
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-4 gap-2 text-center bg-slate-900/80 rounded-lg p-2 border border-slate-800">
-                    <div className="flex flex-col">
-                      <span className="text-[10px] text-slate-500 uppercase font-bold">High</span>
-                      <span className="text-emerald-400 font-mono font-bold">
-                        {toFahrenheit(data.temp)}°F
-                      </span>
-                    </div>
-                    <div className="flex flex-col border-l border-slate-800">
-                      <span className="text-[10px] text-slate-500 uppercase font-bold">Low</span>
-                      <span className="text-blue-400 font-mono font-bold">
-                        {toFahrenheit(data.min_temp)}°F
-                      </span>
-                    </div>
-                    <div className="flex flex-col border-l border-slate-800">
-                      <span className="text-[10px] text-slate-500 uppercase font-bold">Wind</span>
-                      <span className="text-white font-mono font-bold">{formatWind(data.wind_speed)}kt</span>
-                    </div>
-                    <div className="flex flex-col border-l border-slate-800">
-                      <span className="text-[10px] text-slate-500 uppercase font-bold">Rain</span>
-                      <span className="text-white font-mono font-bold">{data.precip}"</span>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-4">
-                  <p className="text-slate-600 text-xs italic">Waiting for daily report...</p>
-                </div>
-              )}
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
     </div>
   );
