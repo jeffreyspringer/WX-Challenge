@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import PredictionDetails from './PredictionDetails'; // 👈 IMPORT THE MODAL
 
 const BADGE_RULES = [
   { id: 'rookie', name: 'The Rookie', icon: '🐣', desc: 'Made your first prediction', check: h => h.length >= 1 },
@@ -12,12 +13,7 @@ const BADGE_RULES = [
 
 export default function Profile({ session, viewedId }) {
   const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState({ 
-    id: '',
-    username: '', 
-    avatar_url: '', 
-    banner_url: '' 
-  });
+  const [profile, setProfile] = useState({ id: '', username: '', avatar_url: '', banner_url: '' });
   
   const [stats, setStats] = useState({ total: 0, avgError: 0 });
   const [history, setHistory] = useState([]);
@@ -25,12 +21,13 @@ export default function Profile({ session, viewedId }) {
   const [earnedBadges, setEarnedBadges] = useState([]);
   const [socials, setSocials] = useState({ followers: 0, following: 0 });
   const [isFollowing, setIsFollowing] = useState(false);
-
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
-
   const [followModal, setFollowModal] = useState(null); 
   const [followList, setFollowList] = useState([]);
+
+  // 🆕 STATE FOR MODAL
+  const [selectedPrediction, setSelectedPrediction] = useState(null);
 
   const DEFAULT_BANNER = "https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?q=80&w=2000&auto=format&fit=crop";
   const DEFAULT_AVATAR = "https://cdn-icons-png.flaticon.com/512/1144/1144760.png";
@@ -45,14 +42,11 @@ export default function Profile({ session, viewedId }) {
       const currentUser = session.user;
       const targetUserId = viewedId || currentUser.id; 
 
-      // 1. Fetch Profile
       let { data: profileData } = await supabase.from('profiles').select('*').eq('id', targetUserId).single();
       
       if (!profileData) {
         profileData = { id: targetUserId, username: 'Unknown User', avatar_url: '', banner_url: '' };
-        if (targetUserId === currentUser.id) {
-           profileData.username = currentUser.email.split('@')[0];
-        }
+        if (targetUserId === currentUser.id) profileData.username = currentUser.email.split('@')[0];
       }
 
       const p = { 
@@ -64,7 +58,7 @@ export default function Profile({ session, viewedId }) {
       setProfile(p);
       setEditForm(p);
 
-      // 2. Fetch History
+      // Fetch Predictions
       const { data: preds } = await supabase.from('predictions')
         .select(`*, actual_weather ( temp, wind_speed, precip )`)
         .eq('user_id', targetUserId)
@@ -83,6 +77,7 @@ export default function Profile({ session, viewedId }) {
             completedCount++;
           }
           return {
+            id: p.id, // 👈 KEY for comments
             date: p.prediction_date,
             station: p.station_id,
             prediction: `${p.p_high}°F / ${p.p_wind_speed}kt`,
@@ -102,17 +97,14 @@ export default function Profile({ session, viewedId }) {
         setStats({ total: 0, avgError: 0 });
       }
 
-      // 3. Fetch Social Counts
       const { count: followersCount } = await supabase.from('relationships').select('*', { count: 'exact', head: true }).eq('following_id', targetUserId);
       const { count: followingCount } = await supabase.from('relationships').select('*', { count: 'exact', head: true }).eq('follower_id', targetUserId);
       setSocials({ followers: followersCount || 0, following: followingCount || 0 });
 
-      // 4. Check Following Status
       if (currentUser.id !== targetUserId) {
         const { data: rel } = await supabase.from('relationships').select('*').match({ follower_id: currentUser.id, following_id: targetUserId }).single();
         setIsFollowing(!!rel);
       }
-
     } catch (error) { console.error('Error:', error); } finally { setLoading(false); }
   };
 
@@ -172,23 +164,23 @@ export default function Profile({ session, viewedId }) {
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-10 relative">
       
+      {/* 🆕 PREDICTION DETAILS MODAL */}
+      {selectedPrediction && (
+        <PredictionDetails 
+          prediction={selectedPrediction} 
+          session={session} 
+          onClose={() => setSelectedPrediction(null)} 
+        />
+      )}
+
       {isEditing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-md shadow-2xl">
             <h2 className="text-white font-bold text-xl mb-4">Edit Profile</h2>
             <div className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Display Name</label>
-                <input value={editForm.username} onChange={e => setEditForm({...editForm, username: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white" />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Avatar URL</label>
-                <input value={editForm.avatar_url} onChange={e => setEditForm({...editForm, avatar_url: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white font-mono text-xs" />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Banner URL</label>
-                <input value={editForm.banner_url} onChange={e => setEditForm({...editForm, banner_url: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white font-mono text-xs" />
-              </div>
+              <div><label className="text-xs font-bold text-slate-500 uppercase block mb-1">Display Name</label><input value={editForm.username} onChange={e => setEditForm({...editForm, username: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white" /></div>
+              <div><label className="text-xs font-bold text-slate-500 uppercase block mb-1">Avatar URL</label><input value={editForm.avatar_url} onChange={e => setEditForm({...editForm, avatar_url: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white font-mono text-xs" /></div>
+              <div><label className="text-xs font-bold text-slate-500 uppercase block mb-1">Banner URL</label><input value={editForm.banner_url} onChange={e => setEditForm({...editForm, banner_url: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white font-mono text-xs" /></div>
             </div>
             <div className="flex gap-2 mt-6">
               <button onClick={handleSaveProfile} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-2 rounded font-bold">Save Changes</button>
@@ -206,21 +198,18 @@ export default function Profile({ session, viewedId }) {
               <button onClick={() => setFollowModal(null)} className="text-slate-500 hover:text-white font-bold">✕</button>
             </div>
             <div className="p-4 overflow-y-auto flex-1 space-y-2">
-              {followList.length === 0 ? (
-                <p className="text-slate-500 text-center italic py-4">No one here yet.</p>
-              ) : (
-                followList.map(user => (
+              {followList.length === 0 ? <p className="text-slate-500 text-center italic py-4">No one here yet.</p> : followList.map(user => (
                   <div key={user.id} className="flex items-center gap-3 p-2 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer">
                     <img src={user.avatar_url || DEFAULT_AVATAR} alt="av" className="w-10 h-10 rounded-full object-cover bg-slate-950 border border-slate-700"/>
                     <div><p className="text-white font-bold text-sm">{user.username}</p></div>
                   </div>
-                ))
-              )}
+              ))}
             </div>
           </div>
         </div>
       )}
 
+      {/* HEADER */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden relative group">
         <div className="h-48 bg-cover bg-center bg-slate-800" style={{ backgroundImage: `url(${profile.banner_url || DEFAULT_BANNER})` }}>
            <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent"></div>
@@ -258,6 +247,7 @@ export default function Profile({ session, viewedId }) {
         </div>
       </div>
 
+      {/* STATS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl text-center">
           <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest">Total Forecasts</h3>
@@ -306,6 +296,7 @@ export default function Profile({ session, viewedId }) {
         </div>
       )}
 
+      {/* HISTORY TABLE */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
         <div className="p-4 border-b border-slate-800">
           <h2 className="text-white font-bold">Prediction History</h2>
@@ -322,7 +313,11 @@ export default function Profile({ session, viewedId }) {
           </thead>
           <tbody className="divide-y divide-slate-800">
             {history.map((row, i) => (
-              <tr key={i} className="hover:bg-slate-800/50">
+              <tr 
+                key={i} 
+                onClick={() => setSelectedPrediction(row)} // 👈 OPEN MODAL ON CLICK
+                className="hover:bg-slate-800/50 cursor-pointer transition-colors"
+              >
                 <td className="p-4">{row.date}</td>
                 <td className="p-4 font-bold text-blue-400">{row.station}</td>
                 <td className="p-4">{row.prediction}</td>
