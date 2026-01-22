@@ -1,9 +1,9 @@
-name: Monthly Leaderboard Reset
-on:
-  schedule:
+# name: Monthly Leaderboard Reset
+# on:
+  # schedule:
     # Runs at 00:00 (Midnight) on day 1 of every month
-    - cron: '0 0 1 * *'
-  workflow_dispatch: # Allows you to run it manually for testing
+    # - cron: '0 0 1 * *'
+  # workflow_dispatch: # Allows you to run it manually for testing
 
 jobs:
   reset:
