@@ -1,10 +1,10 @@
 name: Update Live Weather
 
-on:
-  schedule:
+# on:
+  # schedule:
     # Run every 5 minutes
-    - cron: '*/5 * * * *'
-  workflow_dispatch: # Allows you to run it manually from GitHub button
+    # - cron: '*/5 * * * *'
+  # workflow_dispatch: # Allows you to run it manually from GitHub button
 
 jobs:
   update-weather:
